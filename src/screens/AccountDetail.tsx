@@ -33,7 +33,7 @@ export function AccountDetail({ account, activity, onBack, onViewTransactions }:
               <div style={{ fontSize: 14, color: 'var(--faint)', marginTop: 2 }}>{account.institution}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div className="num" style={{ fontSize: 30, fontWeight: 650, letterSpacing: '-0.02em' }}>
+              <div className="num pv" style={{ fontSize: 30, fontWeight: 650, letterSpacing: '-0.02em' }}>
                 {account.balance}
               </div>
               <div style={{ fontSize: 13, color: 'var(--fainter)', marginTop: 2 }}>Updated {account.updated}</div>

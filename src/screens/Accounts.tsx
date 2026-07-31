@@ -36,7 +36,7 @@ function AccountRow({ account, onOpen }: { account: Account; onOpen: () => void 
         <div className="acct-row-sub">{account.institution}</div>
       </div>
       {account.sparkline && <Sparkline points={account.sparkline} />}
-      <div className="acct-row-right">
+      <div className="acct-row-right pv">
         <div className="acct-row-balance">{account.balance}</div>
         <div className="acct-row-updated">{account.updated}</div>
       </div>
@@ -56,7 +56,7 @@ function SummarySection({ title, total, segments, percentMode }: SummarySectionP
     <>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 15, fontWeight: 650 }}>{title}</span>
-        <span className="num" style={{ fontSize: 15.5, fontWeight: 650 }}>
+        <span className="num pv" style={{ fontSize: 15.5, fontWeight: 650 }}>
           {total}
         </span>
       </div>
@@ -80,7 +80,7 @@ function SummarySection({ title, total, segments, percentMode }: SummarySectionP
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: seg.color }} />
             {seg.label}
           </span>
-          <span className="num" style={{ fontWeight: 600 }}>
+          <span className="num pv" style={{ fontWeight: 600 }}>
             {percentMode ? seg.percent : seg.amount}
           </span>
         </div>
@@ -133,7 +133,7 @@ export function Accounts({
               <div>
                 <div className="overline">Net worth</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-                  <span className="num" style={{ fontSize: 32, fontWeight: 650, letterSpacing: '-0.02em' }}>
+                  <span className="num pv" style={{ fontSize: 38, fontWeight: 650, letterSpacing: '-0.02em' }}>
                     {summary.netWorth}
                   </span>
                   <span style={{ fontSize: 13.5, color: 'var(--faint)' }}>Live from your connected banks</span>
@@ -153,7 +153,7 @@ export function Accounts({
                       <span className="acct-group-title">{group.label}</span>
                       {group.change && <span className="acct-group-change">{group.change}</span>}
                       <span className="acct-group-note">{group.changeNote}</span>
-                      <span className="acct-group-total">{group.total}</span>
+                      <span className="acct-group-total pv">{group.total}</span>
                     </div>
                     {openGroups[group.id] &&
                       group.accounts.map((account) => (
@@ -214,7 +214,7 @@ export function Accounts({
                   }}
                 >
                   <span style={{ fontSize: 15, fontWeight: 650 }}>Net worth</span>
-                  <span className="num" style={{ fontSize: 15.5, fontWeight: 650, color: 'var(--positive)' }}>
+                  <span className="num pv" style={{ fontSize: 15.5, fontWeight: 650, color: 'var(--positive)' }}>
                     {summary.netWorth}
                   </span>
                 </div>

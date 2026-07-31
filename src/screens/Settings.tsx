@@ -1,6 +1,7 @@
 import type { Institution, SettingsSection } from '../data'
 import { Avatar, Toggle } from '../components/primitives'
 import type { SidebarUser } from '../components/Sidebar'
+import type { ThemePref } from '../theme'
 
 export interface NotifPrefs {
   weekly: boolean
@@ -20,7 +21,17 @@ interface SettingsProps {
   onManageAccount: () => void
   onLogIn: () => void
   onSignOut: () => void
+  privacy: boolean
+  onTogglePrivacy: () => void
+  themePref: ThemePref
+  onSetTheme: (pref: ThemePref) => void
 }
+
+const THEME_OPTIONS: { value: ThemePref; label: string }[] = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'auto', label: 'Auto' },
+]
 
 const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: 'general', label: 'General' },
@@ -50,6 +61,10 @@ export function Settings({
   onManageAccount,
   onLogIn,
   onSignOut,
+  privacy,
+  onTogglePrivacy,
+  themePref,
+  onSetTheme,
 }: SettingsProps) {
   return (
     <div className="screen">
@@ -134,6 +149,30 @@ export function Settings({
                     <div className="select-btn">
                       <span>1st of the month</span>
                       <span className="select-caret">▾</span>
+                    </div>
+                  </div>
+                  <div className="settings-row">
+                    <div>
+                      <div className="settings-row-title">Privacy mode</div>
+                      <div className="settings-row-sub">Blur balances until you hover over them</div>
+                    </div>
+                    <Toggle on={privacy} onToggle={onTogglePrivacy} />
+                  </div>
+                  <div className="settings-row">
+                    <div>
+                      <div className="settings-row-title">Theme</div>
+                      <div className="settings-row-sub">How Alder looks on this device</div>
+                    </div>
+                    <div className="seg">
+                      {THEME_OPTIONS.map((option) => (
+                        <span
+                          key={option.value}
+                          className={`seg-item${themePref === option.value ? ' active' : ''}`}
+                          onClick={() => onSetTheme(option.value)}
+                        >
+                          {option.label}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>

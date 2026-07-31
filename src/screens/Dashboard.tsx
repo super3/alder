@@ -71,7 +71,7 @@ export function Dashboard({
                   <div>
                     <div className="overline">Net worth</div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-                      <span className="num" style={{ fontSize: 38, fontWeight: 650, letterSpacing: '-0.02em' }}>
+                      <span className="num pv" style={{ fontSize: 38, fontWeight: 650, letterSpacing: '-0.02em' }}>
                         {netWorth}
                       </span>
                       <span style={{ fontSize: 14, color: 'var(--faint)' }}>Live from your connected banks</span>
@@ -120,7 +120,7 @@ export function Dashboard({
                           </span>
                         </div>
                         <div
-                          style={{ height: 8, borderRadius: 999, background: '#EFEDE6', marginTop: 6, overflow: 'hidden' }}
+                          style={{ height: 8, borderRadius: 999, background: 'var(--track)', marginTop: 6, overflow: 'hidden' }}
                         >
                           <div
                             style={{
@@ -138,14 +138,14 @@ export function Dashboard({
                           </span>
                         </div>
                         <div
-                          style={{ height: 8, borderRadius: 999, background: '#EFEDE6', marginTop: 6, overflow: 'hidden' }}
+                          style={{ height: 8, borderRadius: 999, background: 'var(--track)', marginTop: 6, overflow: 'hidden' }}
                         >
                           <div
                             style={{
                               height: '100%',
                               width: cashFlow.spendingWidth,
                               borderRadius: 999,
-                              background: '#8A8E85',
+                              background: 'var(--bar-mid)',
                             }}
                           />
                         </div>

@@ -10,6 +10,7 @@ import { Transactions, type TxFilters } from './screens/Transactions'
 import { Settings, type NotifPrefs } from './screens/Settings'
 import { Landing } from './screens/Landing'
 import { getClerk } from './clerk'
+import { usePrivacy, useTheme } from './theme'
 import type { SidebarUser } from './components/Sidebar'
 import { api, type PlaidAccount, type PlaidTransaction } from './api'
 import {
@@ -37,6 +38,12 @@ export default function App() {
 
   useEffect(() => {
     if (page === 'app') window.scrollTo(0, 0)
+  }, [page])
+
+  // The landing page is a light-only marketing design but shares the app's
+  // tokens, so pin it to light; the shell reapplies the real theme on entry.
+  useEffect(() => {
+    if (page === 'landing') document.documentElement.setAttribute('data-theme', 'light')
   }, [page])
 
   const signOut = () => {
@@ -83,6 +90,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
   })
   const [notif, setNotif] = useState<NotifPrefs>({ weekly: true, budget: true, large: false, updates: false })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general')
+
+  const [themePref, setThemePref] = useTheme()
+  const [privacy, togglePrivacy] = usePrivacy()
 
   const [refresh, setRefresh] = useState<RefreshState>('idle')
   const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([])
@@ -247,6 +257,10 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             onManageAccount={manageAccount}
             onLogIn={logIn}
             onSignOut={onSignOut}
+            privacy={privacy}
+            onTogglePrivacy={togglePrivacy}
+            themePref={themePref}
+            onSetTheme={setThemePref}
           />
         )}
       </div>

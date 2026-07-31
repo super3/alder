@@ -22,18 +22,30 @@ interface TransactionsProps {
 
 function TransactionListRow({ transaction: t }: { transaction: Transaction }) {
   return (
-    <div className="tx-row" style={{ padding: '13px 20px' }}>
-      <Avatar initials={t.initials} bg={t.avatarBg} fg={t.avatarFg} size={38} fontSize={13.5} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="tx-row-name">{t.merchant}</div>
-        <div className="tx-row-sub">{t.sub}</div>
+    <div className="tx-grid-row">
+      <div className="tx-grid-merchant">
+        <Avatar initials={t.initials} bg={t.avatarBg} fg={t.avatarFg} size={34} fontSize={12.5} />
+        <span className="tx-grid-name">{t.merchant}</span>
       </div>
-      <span className="pill" style={{ background: t.category.bg, color: t.category.fg }}>
-        {t.category.name}
-      </span>
-      <span className={`tx-amount${t.positive ? ' positive' : ''}`} style={{ width: 120, textAlign: 'right' }}>
-        {t.amount}
-      </span>
+      <div className="tx-grid-category">
+        <span className="tx-grid-emoji">{t.category.emoji}</span>
+        <span className="tx-grid-truncate">{t.category.name}</span>
+      </div>
+      <div className="tx-grid-account">
+        {t.account && (
+          <>
+            <Avatar
+              initials={t.account.initials}
+              bg={t.account.avatarBg}
+              fg={t.account.avatarFg}
+              size={20}
+              fontSize={9}
+            />
+            <span className="tx-grid-truncate">{t.account.name}</span>
+          </>
+        )}
+      </div>
+      <span className={`tx-grid-amount${t.positive ? ' positive' : ''}`}>{t.amount}</span>
     </div>
   )
 }
@@ -106,7 +118,10 @@ export function Transactions({
             <div className="card" style={{ overflow: 'hidden' }}>
               {days!.map((day) => (
                 <div key={day.label}>
-                  <div className="day-header">{day.label}</div>
+                  <div className="day-header-row">
+                    <span className="day-header-label">{day.label}</span>
+                    <span className={`day-header-net num${day.netPositive ? ' positive' : ''}`}>{day.net}</span>
+                  </div>
                   {day.transactions.map((t) => (
                     <TransactionListRow key={t.merchant + t.amount + t.sub} transaction={t} />
                   ))}
