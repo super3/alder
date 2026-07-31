@@ -1,26 +1,110 @@
+/* Light and dark palettes come straight from the design's LIGHT/DARK token
+   objects. The accent green is deliberately shared by both themes. */
 :root {
+  color-scheme: light;
+
+  /* surfaces */
   --bg: #faf9f6;
+  --card: #ffffff;
+  --card-border: #e9e6df;
+  --divider: #f0eee8;
+  --btn-border: #e2dfd7;
+  --input-bg: #faf9f6;
+  --track: #efede6;
+  --grid: #f0eee8;
+
+  /* text */
   --ink: #20241f;
   --ink-soft: #2a2e28;
   --muted: #6b7067;
   --faint: #8a8d82;
   --fainter: #9a9d92;
+
+  /* icons */
   --icon: #5b6058;
-  --card-border: #e9e6df;
-  --btn-border: #e2dfd7;
-  --divider: #f0eee8;
+  --icon-2: #6b7067;
+
+  /* states */
   --hover: #f5f4f0;
-  --hover-nav: #efede7;
   --nav-active: #ebe9e1;
+  --toggle-off: #d8d5cc;
+
+  /* accent as a fill — never redeclared in dark, white text sits on it */
   --accent: oklch(0.5 0.1 165);
   --accent-hover: oklch(0.44 0.1 165);
+
+  /* accent as text + semantic colours */
+  --accent-text: oklch(0.5 0.1 165);
   --accent-link-hover: oklch(0.42 0.1 165);
   --positive: oklch(0.55 0.13 160);
-  --toggle-off: #d8d5cc;
-  --checkbox-border: #c9c6bc;
+  --negative: oklch(0.5 0.16 25);
+
+  /* data viz */
   --sparkline: #b9b6ac;
+  --bar-mid: #8a8e85;
+  --bar-strong: #464b43;
+
+  /* elevation */
   --card-shadow: 0 1px 2px rgba(20, 22, 18, 0.05), 0 12px 28px -18px rgba(20, 22, 18, 0.1);
   --menu-shadow: 0 16px 40px -16px rgba(20, 22, 18, 0.28);
+  --modal-shadow: 0 24px 64px -16px rgba(20, 22, 18, 0.35);
+  --scrim: rgba(24, 26, 22, 0.38);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #151713;
+  --card: #1f221d;
+  --card-border: #31352c;
+  --divider: #2a2e26;
+  --btn-border: #3c4037;
+  --input-bg: #1a1d18;
+  --track: #2f332b;
+  --grid: #272b23;
+
+  --ink: #eceee6;
+  --ink-soft: #dfe2d9;
+  --muted: #a6aa9c;
+  --faint: #8e9284;
+  --fainter: #797d71;
+
+  --icon: #a0a496;
+  --icon-2: #a0a496;
+
+  --hover: #272b23;
+  --nav-active: #30342a;
+  --toggle-off: #4b4f44;
+
+  /* The design reuses the light values here, but as *text* on a dark card
+     they land at 2.5-3.5:1. Lightened to clear AA; the fill accent above is
+     untouched, so buttons still match the design exactly. */
+  --accent-text: oklch(0.72 0.12 165);
+  --accent-link-hover: oklch(0.66 0.12 165);
+  --positive: oklch(0.72 0.13 160);
+  --negative: oklch(0.7 0.15 25);
+
+  --sparkline: #5c6055;
+  --bar-mid: #6e7267;
+  --bar-strong: #a9ad9f;
+
+  /* Near-black shadows are invisible on a #151713 page. */
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -18px rgba(0, 0, 0, 0.55);
+  --menu-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.65);
+  --modal-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.7);
+  --scrim: rgba(10, 11, 9, 0.62);
+}
+
+/* Privacy mode: blur money until the pointer is over it. Driven by a root
+   attribute so every screen opts in with one class and toggling costs no
+   React re-render. */
+:root[data-privacy='on'] .pv {
+  filter: blur(9px);
+  transition: filter 0.15s ease;
+}
+
+:root[data-privacy='on'] .pv:hover {
+  filter: none;
 }
 
 * {
@@ -35,6 +119,7 @@ body {
 
 html {
   scroll-behavior: smooth;
+  background: var(--bg);
 }
 
 a {
@@ -135,7 +220,7 @@ a:hover {
 }
 
 .sidebar-collapse-btn:hover {
-  background: var(--hover-nav);
+  background: var(--hover);
 }
 
 .sidebar-nav {
@@ -158,7 +243,7 @@ a:hover {
 }
 
 .nav-item:hover {
-  background: var(--hover-nav);
+  background: var(--hover);
 }
 
 .nav-item.active {
@@ -181,7 +266,7 @@ a:hover {
 }
 
 .profile-row:hover {
-  background: var(--hover-nav);
+  background: var(--hover);
 }
 
 .profile-avatar {
@@ -213,7 +298,7 @@ a:hover {
   position: absolute;
   bottom: calc(100% + 8px);
   left: 10px;
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--card-border);
   border-radius: 10px;
   box-shadow: var(--menu-shadow);
@@ -283,7 +368,7 @@ a:hover {
 /* ============ Cards ============ */
 
 .card {
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--card-border);
   border-radius: 12px;
   box-shadow: var(--card-shadow);
@@ -364,7 +449,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--btn-border);
   color: var(--ink-soft);
   font-size: 14.5px;
@@ -404,7 +489,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 7px;
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--btn-border);
   color: var(--ink-soft);
   font-size: 14.5px;
@@ -421,7 +506,7 @@ a:hover {
 }
 
 .btn-small {
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--btn-border);
   font-size: 14px;
   font-weight: 600;
@@ -440,7 +525,7 @@ a:hover {
   height: 34px;
   border-radius: 8px;
   border: 1px solid var(--btn-border);
-  background: #ffffff;
+  background: var(--card);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -457,7 +542,7 @@ a:hover {
   height: 30px;
   border-radius: 8px;
   border: 1px solid var(--btn-border);
-  background: #ffffff;
+  background: var(--card);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -487,7 +572,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--btn-border);
   font-size: 14px;
   font-weight: 500;
@@ -511,7 +596,7 @@ a:hover {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--card-border);
   border-radius: 10px;
   box-shadow: var(--menu-shadow);
@@ -562,8 +647,8 @@ a:hover {
 }
 
 .menu-checkbox.off {
-  border: 1.5px solid var(--checkbox-border);
-  background: #ffffff;
+  border: 1.5px solid var(--toggle-off);
+  background: var(--card);
 }
 
 /* ============ Toggle switch ============ */
@@ -593,7 +678,7 @@ a:hover {
 
 .seg {
   display: flex;
-  background: var(--divider);
+  background: var(--track);
   border-radius: 999px;
   padding: 3px;
 }
@@ -610,7 +695,7 @@ a:hover {
 }
 
 .seg-item.active {
-  background: #ffffff;
+  background: var(--card);
   box-shadow: 0 1px 2px rgba(20, 22, 18, 0.08);
   color: var(--ink);
 }
@@ -662,13 +747,100 @@ a:hover {
   border-radius: 999px;
 }
 
-.day-header {
+.day-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 15px 20px 7px 20px;
+}
+
+.day-header-label {
   font-size: 12.5px;
   letter-spacing: 0.07em;
   font-weight: 650;
   color: var(--faint);
   text-transform: uppercase;
+}
+
+.day-header-net {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--faint);
+}
+
+.day-header-net.positive {
+  color: var(--positive);
+}
+
+/* Transaction rows: merchant | category | account | amount */
+.tx-grid-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.5fr) minmax(90px, 1fr) minmax(110px, 1fr) minmax(88px, auto);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 20px;
+  border-top: 1px solid var(--divider);
+  cursor: pointer;
+}
+
+.tx-grid-row:hover {
+  background: var(--hover);
+}
+
+.tx-grid-merchant {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tx-grid-name {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tx-grid-category,
+.tx-grid-account {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.tx-grid-category {
+  gap: 7px;
+}
+
+.tx-grid-account {
+  gap: 8px;
+}
+
+.tx-grid-emoji {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.tx-grid-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tx-grid-amount {
+  text-align: right;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tx-grid-amount.positive {
+  color: var(--positive);
 }
 
 .status-pill {
@@ -771,7 +943,7 @@ a:hover {
 }
 
 .settings-nav-item:hover {
-  background: var(--hover-nav);
+  background: var(--hover);
 }
 
 .settings-nav-item.active {
@@ -803,7 +975,7 @@ a:hover {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(24, 26, 22, 0.38);
+  background: var(--scrim);
   z-index: 100;
   display: flex;
   align-items: center;
@@ -814,9 +986,9 @@ a:hover {
 .modal {
   width: 440px;
   max-width: 100%;
-  background: #ffffff;
+  background: var(--card);
   border-radius: 14px;
-  box-shadow: 0 24px 64px -16px rgba(20, 22, 18, 0.35);
+  box-shadow: var(--modal-shadow);
 }
 
 .modal-header {
@@ -864,7 +1036,7 @@ a:hover {
 }
 
 .modal-btn {
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--btn-border);
   color: var(--ink-soft);
   font-size: 14px;
@@ -909,7 +1081,7 @@ a:hover {
   font-family: inherit;
   font-size: 14.5px;
   color: var(--ink);
-  background: #ffffff;
+  background: var(--input-bg);
   outline: none;
   box-sizing: border-box;
 }
@@ -923,7 +1095,7 @@ a:hover {
   padding: 9px 12px;
   font-size: 14.5px;
   color: var(--ink);
-  background: #ffffff;
+  background: var(--card);
   cursor: pointer;
 }
 

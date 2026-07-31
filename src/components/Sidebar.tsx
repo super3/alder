@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Screen } from '../data'
 import { useMenu } from './menu'
-import { AccountsIcon, DashboardIcon, LogoLeaf, SidebarCollapseIcon, TransactionsIcon } from './icons'
+import { AccountsIcon, DashboardIcon, LogoLeaf, SettingsIcon, SidebarCollapseIcon, TransactionsIcon } from './icons'
 
 export interface SidebarUser {
   name: string
@@ -121,6 +121,13 @@ export function Sidebar({ screen, onNavigate, onSignOut, onLogIn, user }: Sideba
         <div style={{ flex: 1 }} />
 
         <div className="sidebar-bottom">
+          <NavItem
+            label="Settings"
+            icon={<SettingsIcon />}
+            active={screen === 'settings'}
+            expanded={expanded}
+            onClick={() => onNavigate('settings')}
+          />
           <div style={{ position: 'relative' }}>
             <div
               className="profile-row"

@@ -188,9 +188,20 @@ function dayLabel(dateStr: string): string {
   return formatted
 }
 
-function toDesignTransaction(txn: PlaidTransaction, sub: string): Transaction {
+function signedAmount(txn: PlaidTransaction): number {
   const amount = typeof txn.amount === 'string' ? parseFloat(txn.amount) : txn.amount
-  const positive = amount < 0 // Plaid: positive = money out
+  return -amount // Plaid: positive = money out, so flip to a natural sign
+}
+
+function accountFor(txn: PlaidTransaction) {
+  const name = txn.account_name || txn.institution_name || 'Connected account'
+  const { bg, fg } = avatarFor(name)
+  return { name, initials: initialsOf(name), avatarBg: bg, avatarFg: fg }
+}
+
+function toDesignTransaction(txn: PlaidTransaction, sub: string): Transaction {
+  const amount = signedAmount(txn)
+  const positive = amount > 0
   const merchant = txn.merchant_name || txn.name
   const { bg, fg } = avatarFor(merchant)
   return {
@@ -202,6 +213,7 @@ function toDesignTransaction(txn: PlaidTransaction, sub: string): Transaction {
     initials: initialsOf(merchant),
     avatarBg: bg,
     avatarFg: fg,
+    account: accountFor(txn),
   }
 }
 
@@ -277,15 +289,21 @@ export function mapAccountsToInstitutions(accounts: PlaidAccount[]): Institution
 }
 
 export function mapTransactionsToDays(transactions: PlaidTransaction[]): TransactionDay[] {
-  const byDate = new Map<string, Transaction[]>()
+  const byDate = new Map<string, { txns: Transaction[]; net: number }>()
   for (const txn of transactions) {
     const mapped = toDesignTransaction(txn, txn.account_name || txn.institution_name || 'Connected account')
     const day = dateOnly(txn.date)
-    const list = byDate.get(day) || []
-    list.push(mapped)
-    byDate.set(day, list)
+    const entry = byDate.get(day) || { txns: [], net: 0 }
+    entry.txns.push(mapped)
+    entry.net += signedAmount(txn)
+    byDate.set(day, entry)
   }
   return [...byDate.entries()]
     .sort(([a], [b]) => (a < b ? 1 : -1))
-    .map(([date, txns]) => ({ label: dayLabel(date), transactions: txns }))
+    .map(([date, { txns, net }]) => ({
+      label: dayLabel(date),
+      net: `${net >= 0 ? '+' : '−'}${formatMoney(Math.abs(net))}`,
+      netPositive: net >= 0,
+      transactions: txns,
+    }))
 }
