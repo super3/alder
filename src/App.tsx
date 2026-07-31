@@ -11,6 +11,7 @@ import { Settings, type NotifPrefs } from './screens/Settings'
 import { Landing } from './screens/Landing'
 import { getClerk } from './clerk'
 import { usePrivacy, useTheme } from './theme'
+import { useCategoryGroups } from './categories'
 import type { SidebarUser } from './components/Sidebar'
 import { api, type PlaidAccount, type PlaidTransaction } from './api'
 import {
@@ -93,6 +94,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
 
   const [themePref, setThemePref] = useTheme()
   const [privacy, togglePrivacy] = usePrivacy()
+  const categories = useCategoryGroups()
 
   const [refresh, setRefresh] = useState<RefreshState>('idle')
   const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([])
@@ -261,6 +263,11 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             onTogglePrivacy={togglePrivacy}
             themePref={themePref}
             onSetTheme={setThemePref}
+            categoryGroups={categories.groups}
+            onAddGroup={categories.addGroup}
+            onRenameGroup={categories.renameGroup}
+            onAddCategory={categories.addCategory}
+            onRemoveCategory={categories.removeCategory}
           />
         )}
       </div>

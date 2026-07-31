@@ -2,6 +2,8 @@ import type { Institution, SettingsSection } from '../data'
 import { Avatar, Toggle } from '../components/primitives'
 import type { SidebarUser } from '../components/Sidebar'
 import type { ThemePref } from '../theme'
+import type { CategoryGroup } from '../categories'
+import { CategorySettings } from '../components/CategorySettings'
 
 export interface NotifPrefs {
   weekly: boolean
@@ -25,6 +27,11 @@ interface SettingsProps {
   onTogglePrivacy: () => void
   themePref: ThemePref
   onSetTheme: (pref: ThemePref) => void
+  categoryGroups: CategoryGroup[]
+  onAddGroup: (section: CategoryGroup['section']) => void
+  onRenameGroup: (index: number, name: string) => void
+  onAddCategory: (index: number, emoji: string, name: string) => void
+  onRemoveCategory: (groupIndex: number, catIndex: number) => void
 }
 
 const THEME_OPTIONS: { value: ThemePref; label: string }[] = [
@@ -35,6 +42,7 @@ const THEME_OPTIONS: { value: ThemePref; label: string }[] = [
 
 const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: 'general', label: 'General' },
+  { id: 'categories', label: 'Categories' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'security', label: 'Security' },
   { id: 'connected', label: 'Connected accounts' },
@@ -65,6 +73,11 @@ export function Settings({
   onTogglePrivacy,
   themePref,
   onSetTheme,
+  categoryGroups,
+  onAddGroup,
+  onRenameGroup,
+  onAddCategory,
+  onRemoveCategory,
 }: SettingsProps) {
   return (
     <div className="screen">
@@ -177,6 +190,16 @@ export function Settings({
                   </div>
                 </div>
               </>
+            )}
+
+            {section === 'categories' && (
+              <CategorySettings
+                groups={categoryGroups}
+                onAddGroup={onAddGroup}
+                onRenameGroup={onRenameGroup}
+                onAddCategory={onAddCategory}
+                onRemoveCategory={onRemoveCategory}
+              />
             )}
 
             {section === 'notifications' && (

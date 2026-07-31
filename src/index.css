@@ -1138,3 +1138,237 @@ a:hover {
   font-size: 14.5px;
   font-weight: 600;
 }
+
+/* ============ Settings › Categories ============ */
+
+.cat-banner {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: oklch(0.96 0.02 165);
+  border: 1px solid oklch(0.9 0.03 165);
+  border-radius: 10px;
+  padding: 13px 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #3e4a42;
+  text-wrap: pretty;
+}
+
+/* The banner is a fixed light-green wash in the design; on a dark page it
+   needs its own surface or it glows. */
+:root[data-theme='dark'] .cat-banner {
+  background: oklch(0.28 0.03 165);
+  border-color: oklch(0.38 0.04 165);
+  color: #d3ddd6;
+}
+
+.cat-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cat-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cat-section-title {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.cat-section-create {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+.cat-group {
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 6px 12px 4px 12px;
+}
+
+.cat-group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 8px 11px 8px;
+}
+
+.cat-group-name {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.cat-group-name-input {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ink);
+  background: var(--card);
+  border: 1.5px solid var(--accent);
+  border-radius: 7px;
+  padding: 3px 8px;
+  outline: none;
+  min-width: 0;
+}
+
+.cat-group-edit {
+  font-size: 14px;
+  color: var(--faint);
+  cursor: pointer;
+}
+
+.cat-group-edit:hover {
+  color: var(--ink-soft);
+}
+
+.cat-group-count {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--faint);
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 9px;
+  padding: 11px 14px;
+  margin-bottom: 6px;
+}
+
+.cat-row-emoji {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.cat-row-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-row-custom {
+  font-size: 12.5px;
+  color: var(--fainter);
+  flex-shrink: 0;
+}
+
+.cat-row-delete {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.cat-row-delete:hover {
+  background: var(--hover);
+}
+
+.cat-draft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1.5px solid var(--accent);
+  border-radius: 9px;
+  padding: 9px 12px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.cat-draft-emoji {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.cat-emoji-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1.5px solid var(--btn-border);
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.cat-emoji-swatch.active {
+  border-color: var(--accent);
+  background: oklch(0.95 0.04 165);
+}
+
+:root[data-theme='dark'] .cat-emoji-swatch.active {
+  background: oklch(0.32 0.04 165);
+}
+
+.cat-draft-input {
+  flex: 1;
+  min-width: 110px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14.5px;
+  color: var(--ink);
+}
+
+.cat-draft-save {
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cat-draft-save:hover {
+  background: var(--accent-hover);
+}
+
+.cat-draft-cancel {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 7px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cat-create {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--faint);
+  padding: 9px 8px 11px 8px;
+  cursor: pointer;
+}
+
+.cat-create:hover {
+  color: var(--ink-soft);
+}
