@@ -139,6 +139,45 @@ export function GroupChevron({ open }: { open: boolean }) {
   )
 }
 
+export function DragHandleIcon() {
+  return (
+    <svg width="10" height="16" viewBox="0 0 10 16" style={{ flexShrink: 0, cursor: 'grab' }}>
+      {[3, 8, 13].map((cy) =>
+        [3, 7].map((cx) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.2" fill="var(--toggle-off)" />),
+      )}
+    </svg>
+  )
+}
+
+export function TrashIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="var(--fainter)"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="3.5,5.5 16.5,5.5" />
+      <path d="M5.5 5.5 L6.3 16.5 L13.7 16.5 L14.5 5.5" />
+      <path d="M7.8 5.5 L7.8 3.5 L12.2 3.5 L12.2 5.5" />
+    </svg>
+  )
+}
+
+export function InfoIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" style={{ flexShrink: 0 }}>
+      <circle cx="10" cy="10" r="8.4" fill="none" stroke="var(--accent)" strokeWidth="1.5" />
+      <circle cx="10" cy="6.2" r="1" fill="var(--accent)" />
+      <line x1="10" y1="9" x2="10" y2="14" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function CheckIcon() {
   return (
     <svg width="10" height="10" viewBox="0 0 10 10">

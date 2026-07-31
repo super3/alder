@@ -2,7 +2,7 @@ export type Screen = 'dashboard' | 'accounts' | 'accountDetail' | 'transactions'
 
 export type ModalKind = 'addAccount'
 
-export type SettingsSection = 'general' | 'notifications' | 'security' | 'connected'
+export type SettingsSection = 'general' | 'categories' | 'notifications' | 'security' | 'connected'
 
 export interface Account {
   id: string
