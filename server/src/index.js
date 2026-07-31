@@ -5,6 +5,7 @@ const cors = require('cors')
 const { clerkMiddleware } = require('@clerk/express')
 
 const { requireAuth } = require('./middleware/auth')
+const { captureRawBody } = require('./plaidWebhookVerify')
 const tokensRouter = require('./routes/tokens')
 const balancesRouter = require('./routes/balances')
 const transactionsRouter = require('./routes/transactions')
@@ -21,7 +22,9 @@ app.use(
     ],
   }),
 )
-app.use(express.json())
+// `verify` only attaches req.rawBody — parsing is unchanged for every route —
+// and the webhook needs the exact bytes Plaid signed.
+app.use(express.json({ verify: captureRawBody }))
 
 app.get('/health', (req, res) => res.json({ ok: true }))
 
