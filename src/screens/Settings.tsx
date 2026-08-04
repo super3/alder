@@ -20,6 +20,7 @@ interface SettingsProps {
   user: SidebarUser | null
   institutions: Institution[] | null
   onAddAccount: () => void
+  onDisconnect: (itemId: string) => void
   onManageAccount: () => void
   onLogIn: () => void
   onSignOut: () => void
@@ -66,6 +67,7 @@ export function Settings({
   user,
   institutions,
   onAddAccount,
+  onDisconnect,
   onManageAccount,
   onLogIn,
   onSignOut,
@@ -214,6 +216,17 @@ export function Settings({
                     <Toggle on={notif[row.key]} onToggle={() => onFlipNotif(row.key)} />
                   </div>
                 ))}
+                <div
+                  style={{
+                    padding: '12px 20px',
+                    borderTop: '1px solid var(--divider)',
+                    fontSize: 13,
+                    color: 'var(--faint)',
+                  }}
+                >
+                  Alder isn't sending notifications yet — these preferences are saved on this device
+                  and will apply once delivery is switched on.
+                </div>
               </div>
             )}
 
@@ -299,6 +312,24 @@ export function Settings({
                       >
                         {inst.status === 'connected' ? 'Connected' : 'Reconnect'}
                       </span>
+                      {inst.itemId && (
+                        <div
+                          className="btn-small danger"
+                          onClick={() => {
+                            // Plaid bills per item per month until /item/remove
+                            // is called, so this is not just a local delete.
+                            if (
+                              window.confirm(
+                                `Disconnect ${inst.name}? Its accounts and transactions will be removed from Alder and Plaid will stop syncing it.`,
+                              )
+                            ) {
+                              onDisconnect(inst.itemId!)
+                            }
+                          }}
+                        >
+                          Disconnect
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (

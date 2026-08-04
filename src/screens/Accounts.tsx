@@ -1,8 +1,9 @@
-import type { Account, AccountGroup } from '../data'
-import { Avatar, Sparkline } from '../components/primitives'
+import type { Account, AccountGroup, MenuKey } from '../data'
+import { Avatar } from '../components/primitives'
 import { EmptyState } from '../components/EmptyState'
 import { GroupChevron } from '../components/icons'
-import type { LiveSummary } from '../plaidMapping'
+import type { LiveSummary, NetWorthHistory } from '../plaidMapping'
+import { NetWorthCard } from '../components/NetWorthCard'
 
 export type GroupId = AccountGroup['id']
 
@@ -19,6 +20,9 @@ interface AccountsProps {
   onAddAccount: () => void
   groups: AccountGroup[] | null
   summary: LiveSummary | null
+  netWorthHistory: NetWorthHistory | null
+  menuSel: Record<MenuKey, number>
+  onMenuSelect: (key: MenuKey, index: number) => void
 }
 
 const REFRESH_LABELS: Record<RefreshState, string> = {
@@ -35,7 +39,6 @@ function AccountRow({ account, onOpen }: { account: Account; onOpen: () => void 
         <div className="acct-row-name">{account.name}</div>
         <div className="acct-row-sub">{account.institution}</div>
       </div>
-      {account.sparkline && <Sparkline points={account.sparkline} />}
       <div className="acct-row-right pv">
         <div className="acct-row-balance">{account.balance}</div>
         <div className="acct-row-updated">{account.updated}</div>
@@ -100,6 +103,9 @@ export function Accounts({
   onAddAccount,
   groups,
   summary,
+  netWorthHistory,
+  menuSel,
+  onMenuSelect,
 }: AccountsProps) {
   const percentMode = summaryMode === 'percent'
   const connected = Boolean(groups && groups.length > 0)
@@ -129,19 +135,13 @@ export function Accounts({
           />
         ) : (
           <>
-            <div className="card" style={{ padding: '22px 26px', marginBottom: 16 }}>
-              <div>
-                <div className="overline">Net worth</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-                  <span className="num pv" style={{ fontSize: 38, fontWeight: 650, letterSpacing: '-0.02em' }}>
-                    {summary.netWorth}
-                  </span>
-                  <span style={{ fontSize: 13.5, color: 'var(--faint)' }}>Live from your connected banks</span>
-                </div>
-              </div>
-              <div className="chart-placeholder" style={{ height: 140, marginTop: 16 }}>
-                Net worth history will build up as your balances sync.
-              </div>
+            <div style={{ marginBottom: 16 }}>
+              <NetWorthCard
+                netWorth={summary.netWorth}
+                history={netWorthHistory}
+                menuSel={menuSel}
+                onMenuSelect={onMenuSelect}
+              />
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>

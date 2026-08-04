@@ -67,3 +67,68 @@ describe('GET /api/plaid/transactions', () => {
     expect(res.status).toBe(500)
   })
 })
+
+describe('transaction overrides', () => {
+  test('saves a merchant and category edit', async () => {
+    db.ownsTransaction.mockResolvedValue(true)
+
+    const res = await request(app)
+      .put('/api/plaid/transactions/txn_1/override')
+      .send({ merchant_name: 'Corner Store', category: 'Groceries' })
+
+    expect(res.status).toBe(200)
+    expect(db.setTransactionOverride).toHaveBeenCalledWith('user_1', 'txn_1', {
+      merchantName: 'Corner Store',
+      category: 'Groceries',
+    })
+  })
+
+  test('tolerates an empty body', async () => {
+    db.ownsTransaction.mockResolvedValue(true)
+    const res = await request(app).put('/api/plaid/transactions/txn_1/override')
+    expect(res.status).toBe(200)
+    expect(db.setTransactionOverride).toHaveBeenCalledWith('user_1', 'txn_1', {
+      merchantName: undefined,
+      category: undefined,
+    })
+  })
+
+  test("refuses to override someone else's transaction", async () => {
+    db.ownsTransaction.mockResolvedValue(false)
+
+    const res = await request(app)
+      .put('/api/plaid/transactions/not_mine/override')
+      .send({ merchant_name: 'Nice try' })
+
+    expect(res.status).toBe(404)
+    expect(db.setTransactionOverride).not.toHaveBeenCalled()
+  })
+
+  test('surfaces save failures as 500', async () => {
+    db.ownsTransaction.mockResolvedValue(true)
+    db.setTransactionOverride.mockRejectedValue(new Error('db down'))
+    const res = await request(app).put('/api/plaid/transactions/txn_1/override').send({ category: 'x' })
+    expect(res.status).toBe(500)
+  })
+
+  test('clears an override', async () => {
+    db.ownsTransaction.mockResolvedValue(true)
+    const res = await request(app).delete('/api/plaid/transactions/txn_1/override')
+    expect(res.status).toBe(200)
+    expect(db.clearTransactionOverride).toHaveBeenCalledWith('user_1', 'txn_1')
+  })
+
+  test("refuses to clear someone else's override", async () => {
+    db.ownsTransaction.mockResolvedValue(false)
+    const res = await request(app).delete('/api/plaid/transactions/not_mine/override')
+    expect(res.status).toBe(404)
+    expect(db.clearTransactionOverride).not.toHaveBeenCalled()
+  })
+
+  test('surfaces clear failures as 500', async () => {
+    db.ownsTransaction.mockResolvedValue(true)
+    db.clearTransactionOverride.mockRejectedValue(new Error('db down'))
+    const res = await request(app).delete('/api/plaid/transactions/txn_1/override')
+    expect(res.status).toBe(500)
+  })
+})

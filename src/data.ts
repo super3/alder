@@ -13,7 +13,6 @@ export interface Account {
   avatarBg: string
   avatarFg: string
   updated: string
-  sparkline?: string
 }
 
 export interface AccountGroup {
@@ -46,7 +45,13 @@ export const CATEGORIES: Record<string, Category> = {
 }
 
 export interface Transaction {
+  id?: string
   merchant: string
+  /** Plaid's cleaned merchant name, offered when reverting an edit. */
+  plaidMerchant?: string
+  /** The raw statement descriptor, offered as an alternative name. */
+  statementName?: string
+  edited?: boolean
   sub: string
   category: Category
   amount: string
@@ -57,6 +62,7 @@ export interface Transaction {
   // The transactions grid shows the owning account as its own column, with a
   // small avatar; the dashboard's compact rows only use `sub`.
   account?: {
+    id: string
     name: string
     initials: string
     avatarBg: string
@@ -74,6 +80,8 @@ export interface TransactionDay {
 
 export interface Institution {
   name: string
+  /** Plaid item id, needed to disconnect. Absent until items load. */
+  itemId?: string
   sub: string
   initials: string
   avatarBg: string
@@ -83,6 +91,7 @@ export interface Institution {
 
 export const MENUS = {
   txDate: ['This month', 'Last month', 'Last 3 months', 'Year to date'],
+  nwRange: ['1 month', '3 months', '6 months', '1 year'],
 } as const
 
 export type MenuKey = keyof typeof MENUS

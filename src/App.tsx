@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Account, MenuKey, ModalKind, Screen, SettingsSection } from './data'
+import { MENUS, type Account, type MenuKey, type ModalKind, type Screen, type SettingsSection } from './data'
 import { MenuProvider } from './components/menu'
 import { Sidebar } from './components/Sidebar'
 import { ModalHost } from './components/Modals'
@@ -13,9 +13,10 @@ import { getClerk } from './clerk'
 import { usePrivacy, useTheme } from './theme'
 import { useCategoryGroups } from './categories'
 import type { SidebarUser } from './components/Sidebar'
-import { api, type PlaidAccount, type PlaidTransaction } from './api'
+import { api, type PlaidAccount, type PlaidItem, type PlaidTransaction } from './api'
 import {
   buildCashFlow,
+  buildNetWorthHistory,
   buildLiveSummary,
   mapAccountsToGroups,
   mapAccountsToInstitutions,
@@ -67,6 +68,19 @@ export default function App() {
   )
 }
 
+const DEFAULT_NOTIF: NotifPrefs = { weekly: true, budget: true, large: false, updates: false }
+
+function readNotifPrefs(): NotifPrefs {
+  try {
+    const raw = localStorage.getItem('alder.notifications')
+    if (!raw) return DEFAULT_NOTIF
+    const parsed = JSON.parse(raw) as Partial<NotifPrefs>
+    return { ...DEFAULT_NOTIF, ...parsed }
+  } catch {
+    return DEFAULT_NOTIF
+  }
+}
+
 function initialsOf(name: string): string {
   const words = name.trim().split(/\s+/)
   const letters = words.length >= 2 ? [words[0][0], words[1][0]] : [name[0], name[1] ?? '']
@@ -78,7 +92,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
   const [modal, setModal] = useState<ModalKind | null>(null)
 
-  const [menuSel, setMenuSel] = useState<Record<MenuKey, number>>({ txDate: 0 })
+  const [menuSel, setMenuSel] = useState<Record<MenuKey, number>>({ txDate: 0, nwRange: 0 })
   const [dashCards, setDashCards] = useState<DashCards>({ networth: true, recent: true, cashflow: true })
   const [txFilters, setTxFilters] = useState<TxFilters>({ pending: false, income: false, transfers: true })
   const [summaryMode, setSummaryMode] = useState<'totals' | 'percent'>('totals')
@@ -89,7 +103,14 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
     property: true,
     loans: true,
   })
-  const [notif, setNotif] = useState<NotifPrefs>({ weekly: true, budget: true, large: false, updates: false })
+  const [notif, setNotif] = useState<NotifPrefs>(readNotifPrefs)
+  useEffect(() => {
+    try {
+      localStorage.setItem('alder.notifications', JSON.stringify(notif))
+    } catch {
+      // Private browsing — preferences just won't survive a reload.
+    }
+  }, [notif])
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general')
 
   const [themePref, setThemePref] = useTheme()
@@ -134,14 +155,55 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
   // whenever it's absent (signed out, no connections, API unreachable).
   const [liveAccounts, setLiveAccounts] = useState<PlaidAccount[] | null>(null)
   const [liveTxns, setLiveTxns] = useState<PlaidTransaction[] | null>(null)
+  const [liveItems, setLiveItems] = useState<PlaidItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadPlaidData = () => {
-    Promise.all([api.getBalances(), api.getTransactions()])
-      .then(([balances, transactions]) => {
+    setLoading(true)
+    return Promise.all([api.getBalances(), api.getTransactions(), api.getItems()])
+      .then(([balances, transactions, items]) => {
         setLiveAccounts(balances.accounts)
         setLiveTxns(transactions.transactions)
+        setLiveItems(items.items)
+        setLoadError(null)
       })
-      .catch(() => {})
+      .catch((err: Error) => {
+        // Swallowing this used to render "No accounts connected yet", which
+        // tells the user they have no banks when we simply couldn't ask.
+        setLoadError(
+          err.message === 'Not signed in'
+            ? 'Log in to see your accounts.'
+            : "Couldn't reach the Alder API. Your data is safe — this is a connection problem.",
+        )
+      })
+      .finally(() => setLoading(false))
+  }
+
+  const renameMerchant = (transactionId: string, name: string | null) => {
+    // Optimistic: patch in place, then reconcile with the server.
+    setLiveTxns((txns) =>
+      (txns ?? []).map((t) => (t.transaction_id === transactionId ? { ...t, override_merchant_name: name } : t)),
+    )
+    const request = name === null ? api.clearOverride(transactionId) : api.setOverride(transactionId, { merchant_name: name })
+    request.then(loadPlaidData, loadPlaidData)
+  }
+
+  const setCategoryOverride = (transactionId: string, category: string | null) => {
+    setLiveTxns((txns) =>
+      (txns ?? []).map((t) => (t.transaction_id === transactionId ? { ...t, override_category: category } : t)),
+    )
+    const request =
+      category === null ? api.clearOverride(transactionId) : api.setOverride(transactionId, { category })
+    request.then(loadPlaidData, loadPlaidData)
+  }
+
+  const disconnectBank = (itemId: string) => api.removeItem(itemId).then(loadPlaidData, loadPlaidData)
+
+  const openAccountById = (accountId: string) => {
+    const account = groups?.flatMap((g) => g.accounts).find((a) => a.id === accountId)
+    // Silently ignoring a miss beats navigating to a blank detail screen.
+    if (account) openAccount(account)
   }
 
   useEffect(() => {
@@ -159,11 +221,14 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
   const hasAccounts = Boolean(liveAccounts && liveAccounts.length > 0)
   const groups = hasAccounts ? mapAccountsToGroups(liveAccounts!) : null
   const summary = hasAccounts ? buildLiveSummary(liveAccounts!) : null
-  const institutions = hasAccounts ? mapAccountsToInstitutions(liveAccounts!) : null
+  const institutions = hasAccounts ? mapAccountsToInstitutions(liveAccounts!, liveItems) : null
   const days = liveTxns && liveTxns.length > 0 ? mapTransactionsToDays(liveTxns) : null
   const recent = liveTxns && liveTxns.length > 0 ? mapTransactionsToRecent(liveTxns, 5) : null
   const cashFlow = liveTxns && liveTxns.length > 0 ? buildCashFlow(liveTxns) : null
   const txnCount = liveTxns?.length ?? 0
+  const netWorthHistory = hasAccounts
+    ? buildNetWorthHistory(liveAccounts!, liveTxns ?? [], MENUS.nwRange[menuSel.nwRange])
+    : null
 
   const accountActivity =
     selectedAccount && liveTxns
@@ -199,12 +264,24 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
       <Sidebar screen={screen} onNavigate={setScreen} onSignOut={onSignOut} onLogIn={logIn} user={clerkUser} />
 
       <div className="main">
+        {loadError && (
+          <div className="load-error">
+            <span>{loadError}</span>
+            <span className="load-error-retry" onClick={loadPlaidData}>
+              Retry
+            </span>
+          </div>
+        )}
+        {loading && !hasAccounts && !loadError && <div className="load-bar" />}
         {screen === 'dashboard' && (
           <Dashboard
             cards={dashCards}
             onFlipCard={(key) => setDashCards((s) => ({ ...s, [key]: !s[key] }))}
             onViewTransactions={() => setScreen('transactions')}
             netWorth={summary?.netWorth ?? null}
+            netWorthHistory={netWorthHistory}
+            menuSel={menuSel}
+            onMenuSelect={selectMenu}
             recent={recent}
             cashFlow={cashFlow}
             onAddAccount={() => setModal('addAccount')}
@@ -223,6 +300,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             onAddAccount={() => setModal('addAccount')}
             groups={groups}
             summary={summary}
+            netWorthHistory={netWorthHistory}
+            menuSel={menuSel}
+            onMenuSelect={selectMenu}
           />
         )}
 
@@ -244,6 +324,10 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             onAddAccount={() => setModal('addAccount')}
             days={days}
             count={txnCount}
+            categoryGroups={categories.groups}
+            onRenameMerchant={renameMerchant}
+            onSetCategory={setCategoryOverride}
+            onOpenAccount={openAccountById}
           />
         )}
 
@@ -264,6 +348,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             themePref={themePref}
             onSetTheme={setThemePref}
             categoryGroups={categories.groups}
+            onDisconnect={disconnectBank}
             onAddGroup={categories.addGroup}
             onRenameGroup={categories.renameGroup}
             onAddCategory={categories.addCategory}

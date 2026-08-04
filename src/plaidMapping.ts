@@ -1,6 +1,6 @@
 // Maps live Plaid API data into the shapes the design screens render
 // (AccountGroup / TransactionDay / summary / cash flow / institutions).
-import type { PlaidAccount, PlaidTransaction } from './api'
+import type { PlaidAccount, PlaidItem, PlaidTransaction } from './api'
 import {
   CATEGORIES,
   type Account,
@@ -172,7 +172,13 @@ const CATEGORY_FOR_PFC: Record<string, Category> = {
   GOVERNMENT_AND_NON_PROFIT: CATEGORIES.utilities,
 }
 
-function categoryFor(pfc: string | null): Category {
+// A user-chosen category name wins; otherwise fall back to Plaid's mapping.
+// Unknown names still render, borrowing the transfer chip's neutral colours.
+function categoryFor(pfc: string | null, override?: string | null): Category {
+  if (override) {
+    const known = Object.values(CATEGORIES).find((c) => c.name === override)
+    return known ?? { ...CATEGORIES.transfer, name: override, emoji: '🏷️' }
+  }
   if (pfc && CATEGORY_FOR_PFC[pfc]) return CATEGORY_FOR_PFC[pfc]
   return CATEGORIES.transfer
 }
@@ -196,18 +202,24 @@ function signedAmount(txn: PlaidTransaction): number {
 function accountFor(txn: PlaidTransaction) {
   const name = txn.account_name || txn.institution_name || 'Connected account'
   const { bg, fg } = avatarFor(name)
-  return { name, initials: initialsOf(name), avatarBg: bg, avatarFg: fg }
+  return { id: txn.account_id, name, initials: initialsOf(name), avatarBg: bg, avatarFg: fg }
 }
 
 function toDesignTransaction(txn: PlaidTransaction, sub: string): Transaction {
   const amount = signedAmount(txn)
   const positive = amount > 0
-  const merchant = txn.merchant_name || txn.name
+  const plaidMerchant = txn.merchant_name || txn.name
+  // A saved edit wins over whatever Plaid supplied.
+  const merchant = txn.override_merchant_name || plaidMerchant
   const { bg, fg } = avatarFor(merchant)
   return {
+    id: txn.transaction_id,
+    plaidMerchant,
+    statementName: txn.name,
+    edited: Boolean(txn.override_merchant_name || txn.override_category),
     merchant: merchant + (txn.pending ? ' (pending)' : ''),
     sub,
-    category: categoryFor(txn.personal_finance_category),
+    category: categoryFor(txn.personal_finance_category, txn.override_category),
     amount: `${positive ? '+' : '−'}${formatMoney(Math.abs(amount), txn.iso_currency_code).replace('-', '')}`,
     positive,
     initials: initialsOf(merchant),
@@ -269,7 +281,92 @@ export function buildCashFlow(transactions: PlaidTransaction[]): CashFlow {
   }
 }
 
-export function mapAccountsToInstitutions(accounts: PlaidAccount[]): Institution[] {
+export interface NetWorthPoint {
+  date: string
+  value: number
+}
+
+export interface NetWorthHistory {
+  points: NetWorthPoint[]
+  current: number
+  change: string
+  changePositive: boolean
+  changeLabel: string
+  /** True once there are at least two distinct days to draw a line between. */
+  plottable: boolean
+}
+
+const RANGE_MONTHS: Record<string, number> = {
+  '1 month': 1,
+  '3 months': 3,
+  '6 months': 6,
+  '1 year': 12,
+}
+
+function netWorthOf(accounts: PlaidAccount[]): number {
+  let total = 0
+  for (const account of accounts) {
+    const groupId = GROUP_FOR_TYPE[account.type] || 'property'
+    const balance = account.balances.current ?? 0
+    // Credit and loan balances are amounts owed, so they subtract.
+    total += groupId === 'credit' || groupId === 'loans' ? -balance : balance
+  }
+  return total
+}
+
+// Reconstructs net worth backwards from today using the transaction stream.
+//
+// Every transaction moves net worth by exactly its signed amount, for assets
+// and liabilities alike: a $100 card purchase is -100 (owed goes up), and
+// paying that card from checking is -100 on checking and +100 on the card,
+// which correctly nets to zero when both accounts are connected. So
+// netWorth(T) = netWorth(now) - sum of signed amounts dated after T.
+//
+// This cannot see investment market movement, or anything before the earliest
+// synced transaction — the card labels that rather than implying otherwise.
+export function buildNetWorthHistory(
+  accounts: PlaidAccount[],
+  transactions: PlaidTransaction[],
+  range: string,
+): NetWorthHistory {
+  const current = netWorthOf(accounts)
+  const months = RANGE_MONTHS[range] ?? 1
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const start = new Date(today)
+  start.setMonth(start.getMonth() - months)
+
+  // Net movement per day, most recent first.
+  const netByDay = new Map<string, number>()
+  for (const txn of transactions) {
+    const day = dateOnly(txn.date)
+    netByDay.set(day, (netByDay.get(day) || 0) + signedAmount(txn))
+  }
+
+  const points: NetWorthPoint[] = []
+  let running = current
+  for (let cursor = new Date(today); cursor >= start; cursor.setDate(cursor.getDate() - 1)) {
+    const day = cursor.toISOString().slice(0, 10)
+    points.unshift({ date: day, value: running })
+    running -= netByDay.get(day) || 0
+  }
+
+  const first = points[0]?.value ?? current
+  const delta = current - first
+  const distinct = new Set(points.map((p) => p.value)).size
+
+  return {
+    points,
+    current,
+    change: `${delta >= 0 ? '↑' : '↓'} ${formatMoney(Math.abs(delta))}`,
+    changePositive: delta >= 0,
+    changeLabel: `${range} change`,
+    plottable: points.length > 1 && distinct > 1,
+  }
+}
+
+export function mapAccountsToInstitutions(accounts: PlaidAccount[], items: PlaidItem[] = []): Institution[] {
   const counts = new Map<string, number>()
   for (const account of accounts) {
     const name = account.institution_name || 'Connected bank'
@@ -279,6 +376,7 @@ export function mapAccountsToInstitutions(accounts: PlaidAccount[]): Institution
     const { bg, fg } = avatarFor(name)
     return {
       name,
+      itemId: items.find((i) => i.institution_name === name)?.item_id,
       sub: `${count} account${count === 1 ? '' : 's'} · Plaid`,
       initials: initialsOf(name),
       avatarBg: bg,
