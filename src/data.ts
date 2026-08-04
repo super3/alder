@@ -83,6 +83,7 @@ export interface Institution {
 
 export const MENUS = {
   txDate: ['This month', 'Last month', 'Last 3 months', 'Year to date'],
+  nwRange: ['1 month', '3 months', '6 months', '1 year'],
 } as const
 
 export type MenuKey = keyof typeof MENUS

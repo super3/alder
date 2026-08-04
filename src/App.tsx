@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Account, MenuKey, ModalKind, Screen, SettingsSection } from './data'
+import { MENUS, type Account, type MenuKey, type ModalKind, type Screen, type SettingsSection } from './data'
 import { MenuProvider } from './components/menu'
 import { Sidebar } from './components/Sidebar'
 import { ModalHost } from './components/Modals'
@@ -16,6 +16,7 @@ import type { SidebarUser } from './components/Sidebar'
 import { api, type PlaidAccount, type PlaidTransaction } from './api'
 import {
   buildCashFlow,
+  buildNetWorthHistory,
   buildLiveSummary,
   mapAccountsToGroups,
   mapAccountsToInstitutions,
@@ -78,7 +79,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
   const [modal, setModal] = useState<ModalKind | null>(null)
 
-  const [menuSel, setMenuSel] = useState<Record<MenuKey, number>>({ txDate: 0 })
+  const [menuSel, setMenuSel] = useState<Record<MenuKey, number>>({ txDate: 0, nwRange: 0 })
   const [dashCards, setDashCards] = useState<DashCards>({ networth: true, recent: true, cashflow: true })
   const [txFilters, setTxFilters] = useState<TxFilters>({ pending: false, income: false, transfers: true })
   const [summaryMode, setSummaryMode] = useState<'totals' | 'percent'>('totals')
@@ -164,6 +165,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
   const recent = liveTxns && liveTxns.length > 0 ? mapTransactionsToRecent(liveTxns, 5) : null
   const cashFlow = liveTxns && liveTxns.length > 0 ? buildCashFlow(liveTxns) : null
   const txnCount = liveTxns?.length ?? 0
+  const netWorthHistory = hasAccounts
+    ? buildNetWorthHistory(liveAccounts!, liveTxns ?? [], MENUS.nwRange[menuSel.nwRange])
+    : null
 
   const accountActivity =
     selectedAccount && liveTxns
@@ -205,6 +209,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             onFlipCard={(key) => setDashCards((s) => ({ ...s, [key]: !s[key] }))}
             onViewTransactions={() => setScreen('transactions')}
             netWorth={summary?.netWorth ?? null}
+            netWorthHistory={netWorthHistory}
+            menuSel={menuSel}
+            onMenuSelect={selectMenu}
             recent={recent}
             cashFlow={cashFlow}
             onAddAccount={() => setModal('addAccount')}
@@ -223,6 +230,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             onAddAccount={() => setModal('addAccount')}
             groups={groups}
             summary={summary}
+            netWorthHistory={netWorthHistory}
+            menuSel={menuSel}
+            onMenuSelect={selectMenu}
           />
         )}
 

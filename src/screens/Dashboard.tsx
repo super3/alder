@@ -1,9 +1,10 @@
-import type { Transaction } from '../data'
+import type { MenuKey, Transaction } from '../data'
 import { Menu, MenuCheckItem } from '../components/menu'
 import { TransactionRow } from '../components/TransactionRow'
 import { EmptyState } from '../components/EmptyState'
 import { SlidersIcon } from '../components/icons'
-import type { CashFlow } from '../plaidMapping'
+import type { CashFlow, NetWorthHistory } from '../plaidMapping'
+import { NetWorthCard } from '../components/NetWorthCard'
 
 export interface DashCards {
   networth: boolean
@@ -16,6 +17,9 @@ interface DashboardProps {
   onFlipCard: (key: keyof DashCards) => void
   onViewTransactions: () => void
   netWorth: string | null
+  netWorthHistory: NetWorthHistory | null
+  menuSel: Record<MenuKey, number>
+  onMenuSelect: (key: MenuKey, index: number) => void
   recent: Transaction[] | null
   cashFlow: CashFlow | null
   onAddAccount: () => void
@@ -26,6 +30,9 @@ export function Dashboard({
   onFlipCard,
   onViewTransactions,
   netWorth,
+  netWorthHistory,
+  menuSel,
+  onMenuSelect,
   recent,
   cashFlow,
   onAddAccount,
@@ -66,22 +73,12 @@ export function Dashboard({
         ) : (
           <>
             {cards.networth && (
-              <div className="card" style={{ padding: '22px 26px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-                  <div>
-                    <div className="overline">Net worth</div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-                      <span className="num pv" style={{ fontSize: 38, fontWeight: 650, letterSpacing: '-0.02em' }}>
-                        {netWorth}
-                      </span>
-                      <span style={{ fontSize: 14, color: 'var(--faint)' }}>Live from your connected banks</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="chart-placeholder" style={{ height: 180, marginTop: 18 }}>
-                  Net worth history will build up as your balances sync.
-                </div>
-              </div>
+              <NetWorthCard
+                netWorth={netWorth}
+                history={netWorthHistory}
+                menuSel={menuSel}
+                onMenuSelect={onMenuSelect}
+              />
             )}
 
             <div

@@ -43,6 +43,9 @@
   --sparkline: #b9b6ac;
   --bar-mid: #8a8e85;
   --bar-strong: #464b43;
+  --chart-line: oklch(0.55 0.11 165);
+  --chart-fill-from: oklch(0.62 0.11 165 / 0.22);
+  --chart-fill-to: oklch(0.62 0.11 165 / 0);
 
   /* elevation */
   --card-shadow: 0 1px 2px rgba(20, 22, 18, 0.05), 0 12px 28px -18px rgba(20, 22, 18, 0.1);
@@ -87,6 +90,9 @@
   --sparkline: #5c6055;
   --bar-mid: #6e7267;
   --bar-strong: #a9ad9f;
+  --chart-line: oklch(0.7 0.12 165);
+  --chart-fill-from: oklch(0.72 0.12 165 / 0.2);
+  --chart-fill-to: oklch(0.72 0.12 165 / 0);
 
   /* Near-black shadows are invisible on a #151713 page. */
   --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -18px rgba(0, 0, 0, 0.55);
@@ -1371,4 +1377,54 @@ a:hover {
 
 .cat-create:hover {
   color: var(--ink-soft);
+}
+
+/* ============ Net worth chart ============ */
+
+.nw-chart {
+  position: relative;
+  padding-left: 56px;
+}
+
+.nw-chart-y {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 52px;
+}
+
+.nw-chart-y-label {
+  position: absolute;
+  left: 0;
+  font-size: 12px;
+  color: var(--fainter);
+  font-variant-numeric: tabular-nums;
+}
+
+.nw-chart-plot {
+  position: relative;
+}
+
+.nw-chart-svg {
+  position: relative;
+}
+
+.nw-chart-dot {
+  position: absolute;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--chart-line);
+  border: 2px solid var(--card);
+  box-shadow: 0 1px 3px rgba(20, 22, 18, 0.25);
+}
+
+.nw-chart-x {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--fainter);
 }
