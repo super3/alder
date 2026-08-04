@@ -1,5 +1,5 @@
 import type { Account, AccountGroup, MenuKey } from '../data'
-import { Avatar, Sparkline } from '../components/primitives'
+import { Avatar } from '../components/primitives'
 import { EmptyState } from '../components/EmptyState'
 import { GroupChevron } from '../components/icons'
 import type { LiveSummary, NetWorthHistory } from '../plaidMapping'
@@ -39,7 +39,6 @@ function AccountRow({ account, onOpen }: { account: Account; onOpen: () => void 
         <div className="acct-row-name">{account.name}</div>
         <div className="acct-row-sub">{account.institution}</div>
       </div>
-      {account.sparkline && <Sparkline points={account.sparkline} />}
       <div className="acct-row-right pv">
         <div className="acct-row-balance">{account.balance}</div>
         <div className="acct-row-updated">{account.updated}</div>

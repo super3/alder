@@ -1428,3 +1428,186 @@ a:hover {
   font-size: 12px;
   color: var(--fainter);
 }
+
+/* ============ Inline transaction editing ============ */
+
+.tx-cell-edit {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Editable cells stay visually identical to plain text until hovered. */
+.tx-editable {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tx-editable:hover,
+.tx-editable:focus-visible {
+  background: var(--nav-active);
+  outline: none;
+}
+
+.tx-category-btn,
+.tx-account-btn {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.tx-account-btn {
+  gap: 8px;
+}
+
+.tx-edited-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+
+.tx-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  box-shadow: var(--menu-shadow);
+  padding: 5px;
+  min-width: 240px;
+  z-index: 70;
+}
+
+.tx-pop-input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--input-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: 7px;
+  padding: 7px 9px;
+  outline: none;
+  margin-bottom: 4px;
+}
+
+.tx-pop-input:focus {
+  border-color: var(--accent);
+}
+
+.tx-pop-label {
+  padding: 7px 12px 4px 12px;
+  font-size: 11.5px;
+  letter-spacing: 0.07em;
+  font-weight: 650;
+  color: var(--faint);
+  text-transform: uppercase;
+}
+
+.tx-pop-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.tx-pop-item {
+  padding: 8px 12px;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tx-pop-item:hover {
+  background: var(--hover);
+}
+
+.tx-pop-item.active {
+  background: var(--nav-active);
+}
+
+.tx-pop-item.muted {
+  color: var(--faint);
+}
+
+.tx-pop-sep {
+  height: 1px;
+  background: var(--divider);
+  margin: 4px 0;
+}
+
+.load-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 28px 0 28px;
+  padding: 11px 16px;
+  border-radius: 10px;
+  background: oklch(0.96 0.03 70);
+  border: 1px solid oklch(0.88 0.06 70);
+  color: #5a4326;
+  font-size: 14px;
+}
+
+:root[data-theme='dark'] .load-error {
+  background: oklch(0.29 0.04 70);
+  border-color: oklch(0.4 0.05 70);
+  color: #e6d9c4;
+}
+
+.load-error-retry {
+  margin-left: auto;
+  font-weight: 650;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.load-bar {
+  height: 2px;
+  margin: 0 28px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: load-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes load-slide {
+  from { background-position: -40% 0; }
+  to { background-position: 140% 0; }
+}
+
+.btn-small.danger {
+  color: oklch(0.5 0.16 25);
+  border-color: oklch(0.85 0.07 25);
+}
+
+:root[data-theme='dark'] .btn-small.danger {
+  color: oklch(0.75 0.14 25);
+  border-color: oklch(0.42 0.08 25);
+}
+
+/* The transactions card can't clip its contents, or the inline-edit popovers
+   get cut off — so the last row carries the bottom corners itself. */
+.tx-card > div:last-child .tx-grid-row:last-child {
+  border-bottom-left-radius: 11px;
+  border-bottom-right-radius: 11px;
+}

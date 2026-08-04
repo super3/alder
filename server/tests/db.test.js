@@ -154,3 +154,86 @@ describe('toDateString', () => {
     expect(db.toDateString(null)).toBeNull()
   })
 })
+
+describe('transaction overrides', () => {
+  test('ownsTransaction only matches the transaction owner', async () => {
+    await db.upsertTransaction(baseTxn({ transaction_id: 'txn_own' }))
+    expect(await db.ownsTransaction('user_1', 'txn_own')).toBe(true)
+    expect(await db.ownsTransaction('someone_else', 'txn_own')).toBe(false)
+    expect(await db.ownsTransaction('user_1', 'no_such_txn')).toBe(false)
+  })
+
+  test('an override rides along on the transaction read', async () => {
+    await db.upsertTransaction(baseTxn({ transaction_id: 'txn_ovr' }))
+    await db.setTransactionOverride('user_1', 'txn_ovr', {
+      merchantName: 'Corner Store',
+      category: 'Groceries',
+    })
+
+    const txns = await db.getTransactionsForUser('user_1', 500)
+    const row = txns.find((t) => t.transaction_id === 'txn_ovr')
+    expect(row.override_merchant_name).toBe('Corner Store')
+    expect(row.override_category).toBe('Groceries')
+    // The Plaid-supplied values are untouched, so the edit can be reverted.
+    expect(row.merchant_name).toBe('Green Basket')
+  })
+
+  test('setting again updates rather than duplicating', async () => {
+    await db.setTransactionOverride('user_1', 'txn_ovr', { merchantName: 'Renamed', category: null })
+    const txns = await db.getTransactionsForUser('user_1', 500)
+    const row = txns.find((t) => t.transaction_id === 'txn_ovr')
+    expect(row.override_merchant_name).toBe('Renamed')
+    expect(row.override_category).toBeNull()
+  })
+
+  test('an unspecified field defaults to null', async () => {
+    await db.setTransactionOverride('user_1', 'txn_ovr', {})
+    const txns = await db.getTransactionsForUser('user_1', 500)
+    const row = txns.find((t) => t.transaction_id === 'txn_ovr')
+    expect(row.override_merchant_name).toBeNull()
+  })
+
+  test('clearing reverts to the Plaid values', async () => {
+    await db.setTransactionOverride('user_1', 'txn_ovr', { merchantName: 'Temp' })
+    await db.clearTransactionOverride('user_1', 'txn_ovr')
+    const txns = await db.getTransactionsForUser('user_1', 500)
+    const row = txns.find((t) => t.transaction_id === 'txn_ovr')
+    // LEFT JOIN with no matching override row yields NULL, not a missing key.
+    expect(row.override_merchant_name).toBeNull()
+  })
+
+  test('a sync cannot clobber an override', async () => {
+    await db.setTransactionOverride('user_1', 'txn_ovr', { merchantName: 'Sticky' })
+    // Exactly what sync.js does on the next pass.
+    await db.upsertTransaction(baseTxn({ transaction_id: 'txn_ovr', merchant_name: 'Plaid Renamed It' }))
+
+    const txns = await db.getTransactionsForUser('user_1', 500)
+    const row = txns.find((t) => t.transaction_id === 'txn_ovr')
+    expect(row.merchant_name).toBe('Plaid Renamed It')
+    expect(row.override_merchant_name).toBe('Sticky')
+  })
+})
+
+describe('deleteItem', () => {
+  test('removes the item and everything hanging off it', async () => {
+    await db.addItem('user_del', 'item_del', 'tok')
+    await db.upsertAccount('item_del', baseAccount({ account_id: 'acc_del' }))
+    await db.upsertTransaction(baseTxn({ transaction_id: 'txn_del', account_id: 'acc_del' }))
+    await db.setTransactionOverride('user_del', 'txn_del', { merchantName: 'Gone soon' })
+
+    expect(await db.getAccountsForUser('user_del')).toHaveLength(1)
+
+    await db.deleteItem('user_del', 'item_del')
+
+    expect(await db.getItemsForUser('user_del')).toHaveLength(0)
+    expect(await db.getAccountsForUser('user_del')).toHaveLength(0)
+    expect(await db.getTransactionsForUser('user_del', 500)).toHaveLength(0)
+    expect(await db.ownsTransaction('user_del', 'txn_del')).toBe(false)
+  })
+
+  test("leaves another user's item alone", async () => {
+    await db.addItem('user_keep', 'item_keep', 'tok')
+    await db.deleteItem('user_other', 'item_keep')
+    expect(await db.getItemsForUser('user_keep')).toHaveLength(1)
+  })
+})

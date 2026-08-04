@@ -9,6 +9,7 @@ const { captureRawBody } = require('./plaidWebhookVerify')
 const tokensRouter = require('./routes/tokens')
 const balancesRouter = require('./routes/balances')
 const transactionsRouter = require('./routes/transactions')
+const itemsRouter = require('./routes/items')
 const webhookRouter = require('./routes/webhook')
 
 const app = express()
@@ -36,6 +37,7 @@ app.use(clerkMiddleware())
 app.use('/api/plaid', requireAuth, tokensRouter)
 app.use('/api/plaid', requireAuth, balancesRouter)
 app.use('/api/plaid', requireAuth, transactionsRouter)
+app.use('/api/plaid', requireAuth, itemsRouter)
 
 // Central error handler: log Plaid error payloads, never leak them raw.
 app.use((err, req, res, _next) => {

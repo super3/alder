@@ -1,6 +1,6 @@
 // Maps live Plaid API data into the shapes the design screens render
 // (AccountGroup / TransactionDay / summary / cash flow / institutions).
-import type { PlaidAccount, PlaidTransaction } from './api'
+import type { PlaidAccount, PlaidItem, PlaidTransaction } from './api'
 import {
   CATEGORIES,
   type Account,
@@ -172,7 +172,13 @@ const CATEGORY_FOR_PFC: Record<string, Category> = {
   GOVERNMENT_AND_NON_PROFIT: CATEGORIES.utilities,
 }
 
-function categoryFor(pfc: string | null): Category {
+// A user-chosen category name wins; otherwise fall back to Plaid's mapping.
+// Unknown names still render, borrowing the transfer chip's neutral colours.
+function categoryFor(pfc: string | null, override?: string | null): Category {
+  if (override) {
+    const known = Object.values(CATEGORIES).find((c) => c.name === override)
+    return known ?? { ...CATEGORIES.transfer, name: override, emoji: '🏷️' }
+  }
   if (pfc && CATEGORY_FOR_PFC[pfc]) return CATEGORY_FOR_PFC[pfc]
   return CATEGORIES.transfer
 }
@@ -196,18 +202,24 @@ function signedAmount(txn: PlaidTransaction): number {
 function accountFor(txn: PlaidTransaction) {
   const name = txn.account_name || txn.institution_name || 'Connected account'
   const { bg, fg } = avatarFor(name)
-  return { name, initials: initialsOf(name), avatarBg: bg, avatarFg: fg }
+  return { id: txn.account_id, name, initials: initialsOf(name), avatarBg: bg, avatarFg: fg }
 }
 
 function toDesignTransaction(txn: PlaidTransaction, sub: string): Transaction {
   const amount = signedAmount(txn)
   const positive = amount > 0
-  const merchant = txn.merchant_name || txn.name
+  const plaidMerchant = txn.merchant_name || txn.name
+  // A saved edit wins over whatever Plaid supplied.
+  const merchant = txn.override_merchant_name || plaidMerchant
   const { bg, fg } = avatarFor(merchant)
   return {
+    id: txn.transaction_id,
+    plaidMerchant,
+    statementName: txn.name,
+    edited: Boolean(txn.override_merchant_name || txn.override_category),
     merchant: merchant + (txn.pending ? ' (pending)' : ''),
     sub,
-    category: categoryFor(txn.personal_finance_category),
+    category: categoryFor(txn.personal_finance_category, txn.override_category),
     amount: `${positive ? '+' : '−'}${formatMoney(Math.abs(amount), txn.iso_currency_code).replace('-', '')}`,
     positive,
     initials: initialsOf(merchant),
@@ -354,7 +366,7 @@ export function buildNetWorthHistory(
   }
 }
 
-export function mapAccountsToInstitutions(accounts: PlaidAccount[]): Institution[] {
+export function mapAccountsToInstitutions(accounts: PlaidAccount[], items: PlaidItem[] = []): Institution[] {
   const counts = new Map<string, number>()
   for (const account of accounts) {
     const name = account.institution_name || 'Connected bank'
@@ -364,6 +376,7 @@ export function mapAccountsToInstitutions(accounts: PlaidAccount[]): Institution
     const { bg, fg } = avatarFor(name)
     return {
       name,
+      itemId: items.find((i) => i.institution_name === name)?.item_id,
       sub: `${count} account${count === 1 ? '' : 's'} · Plaid`,
       initials: initialsOf(name),
       avatarBg: bg,

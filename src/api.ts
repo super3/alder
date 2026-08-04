@@ -34,6 +34,15 @@ export interface PlaidTransaction {
   pending: boolean
   account_name: string | null
   institution_name: string | null
+  // User edits, stored separately server-side so a re-sync can't clobber them.
+  override_merchant_name: string | null
+  override_category: string | null
+}
+
+export interface PlaidItem {
+  item_id: string
+  institution_name: string | null
+  institution_id: string | null
 }
 
 async function authFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -64,4 +73,16 @@ export const api = {
   getTransactions: (limit = 200) =>
     authFetch<{ transactions: PlaidTransaction[] }>(`/api/plaid/transactions?limit=${limit}`),
   syncTransactions: () => authFetch<{ results: unknown[] }>('/api/plaid/sync', { method: 'POST' }),
+  getItems: () => authFetch<{ items: PlaidItem[] }>('/api/plaid/items'),
+  removeItem: (itemId: string) =>
+    authFetch<{ removed: string }>(`/api/plaid/items/${encodeURIComponent(itemId)}`, { method: 'DELETE' }),
+  setOverride: (transactionId: string, body: { merchant_name?: string | null; category?: string | null }) =>
+    authFetch<{ ok: true }>(`/api/plaid/transactions/${encodeURIComponent(transactionId)}/override`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  clearOverride: (transactionId: string) =>
+    authFetch<{ ok: true }>(`/api/plaid/transactions/${encodeURIComponent(transactionId)}/override`, {
+      method: 'DELETE',
+    }),
 }

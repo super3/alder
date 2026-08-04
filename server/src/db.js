@@ -48,6 +48,20 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 CREATE INDEX IF NOT EXISTS transactions_account_idx ON transactions (account_id);
 CREATE INDEX IF NOT EXISTS transactions_date_idx ON transactions (date DESC);
+
+-- User edits to a synced transaction. Deliberately a separate table: sync.js
+-- upserts the transactions table on every pass and would overwrite any
+-- column it owns.
+CREATE TABLE IF NOT EXISTS transaction_overrides (
+  id SERIAL PRIMARY KEY,
+  clerk_user_id TEXT NOT NULL,
+  transaction_id TEXT NOT NULL,
+  merchant_name TEXT,
+  category TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (clerk_user_id, transaction_id)
+);
+CREATE INDEX IF NOT EXISTS overrides_user_idx ON transaction_overrides (clerk_user_id);
 `
 
 const pool = new Pool({
@@ -173,10 +187,14 @@ function toDateString(value) {
 
 async function getTransactionsForUser(clerkUserId, limit = 100) {
   const { rows } = await pool.query(
-    `SELECT t.*, a.name AS account_name, i.institution_name
+    `SELECT t.*, a.name AS account_name, i.institution_name,
+            o.merchant_name AS override_merchant_name,
+            o.category AS override_category
        FROM transactions t
        JOIN accounts a ON a.account_id = t.account_id
        JOIN items i ON i.item_id = a.item_id
+       LEFT JOIN transaction_overrides o
+         ON o.transaction_id = t.transaction_id AND o.clerk_user_id = i.clerk_user_id
       WHERE i.clerk_user_id = $1 AND t.is_removed = false
       ORDER BY t.date DESC, t.id DESC
       LIMIT $2`,
@@ -187,6 +205,62 @@ async function getTransactionsForUser(clerkUserId, limit = 100) {
     date: toDateString(row.date),
     authorized_date: toDateString(row.authorized_date),
   }))
+}
+
+// Ownership is proven by joining back through accounts -> items, so a user can
+// only ever override a transaction that arrived on one of their own items.
+async function ownsTransaction(clerkUserId, transactionId) {
+  const { rows } = await pool.query(
+    `SELECT 1
+       FROM transactions t
+       JOIN accounts a ON a.account_id = t.account_id
+       JOIN items i ON i.item_id = a.item_id
+      WHERE i.clerk_user_id = $1 AND t.transaction_id = $2
+      LIMIT 1`,
+    [clerkUserId, transactionId],
+  )
+  return rows.length > 0
+}
+
+async function setTransactionOverride(clerkUserId, transactionId, { merchantName, category }) {
+  await pool.query(
+    `INSERT INTO transaction_overrides (clerk_user_id, transaction_id, merchant_name, category)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (clerk_user_id, transaction_id) DO UPDATE SET
+       merchant_name = EXCLUDED.merchant_name,
+       category = EXCLUDED.category,
+       updated_at = now()`,
+    [clerkUserId, transactionId, merchantName ?? null, category ?? null],
+  )
+}
+
+async function clearTransactionOverride(clerkUserId, transactionId) {
+  await pool.query('DELETE FROM transaction_overrides WHERE clerk_user_id = $1 AND transaction_id = $2', [
+    clerkUserId,
+    transactionId,
+  ])
+}
+
+// Deleting the item cascades to its accounts; transactions and overrides are
+// keyed by account_id / transaction_id rather than by a foreign key, so they
+// are swept explicitly first.
+async function deleteItem(clerkUserId, itemId) {
+  const { rows } = await pool.query(
+    'SELECT a.account_id FROM accounts a JOIN items i ON i.item_id = a.item_id WHERE i.clerk_user_id = $1 AND a.item_id = $2',
+    [clerkUserId, itemId],
+  )
+  for (const { account_id: accountId } of rows) {
+    const { rows: txns } = await pool.query('SELECT transaction_id FROM transactions WHERE account_id = $1', [accountId])
+    for (const { transaction_id: transactionId } of txns) {
+      await pool.query('DELETE FROM transaction_overrides WHERE clerk_user_id = $1 AND transaction_id = $2', [
+        clerkUserId,
+        transactionId,
+      ])
+    }
+    await pool.query('DELETE FROM transactions WHERE account_id = $1', [accountId])
+    await pool.query('DELETE FROM accounts WHERE account_id = $1', [accountId])
+  }
+  await pool.query('DELETE FROM items WHERE clerk_user_id = $1 AND item_id = $2', [clerkUserId, itemId])
 }
 
 module.exports = {
@@ -202,5 +276,9 @@ module.exports = {
   markTransactionRemoved,
   getAccountsForUser,
   getTransactionsForUser,
+  ownsTransaction,
+  setTransactionOverride,
+  clearTransactionOverride,
+  deleteItem,
   toDateString,
 }
