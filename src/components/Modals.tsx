@@ -31,6 +31,41 @@ function PlaidLinkOpener({
   return null
 }
 
+// Plaid Link in update mode: the user signs back in to an existing
+// connection. No token exchange follows — the item keeps its access token —
+// so success just means "sync again".
+export function ReconnectLink({
+  itemId,
+  onDone,
+  onError,
+}: {
+  itemId: string
+  onDone: (reconnected: boolean) => void
+  onError: (message: string) => void
+}) {
+  const [token, setToken] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    api
+      .createLinkToken(itemId)
+      .then((res) => {
+        if (!cancelled) setToken(res.link_token)
+      })
+      .catch(() => {
+        if (cancelled) return
+        onError("Couldn't start reconnecting that bank. Try again in a moment.")
+        onDone(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // Callbacks are fresh closures each render; only a new item restarts Link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemId])
+  if (!token) return null
+  return <PlaidLinkOpener token={token} onSuccess={() => onDone(true)} onExit={() => onDone(false)} />
+}
+
 export function ModalHost({ modal, onClose, onBankConnected }: ModalHostProps) {
   const [linkToken, setLinkToken] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)

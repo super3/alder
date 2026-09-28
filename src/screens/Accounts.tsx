@@ -1,4 +1,4 @@
-import type { Account, AccountGroup, MenuKey } from '../data'
+import type { Account, AccountGroup } from '../data'
 import { Avatar } from '../components/primitives'
 import { EmptyState } from '../components/EmptyState'
 import { GroupChevron } from '../components/icons'
@@ -7,7 +7,7 @@ import { NetWorthCard } from '../components/NetWorthCard'
 
 export type GroupId = AccountGroup['id']
 
-export type RefreshState = 'idle' | 'busy' | 'done'
+export type RefreshState = 'idle' | 'busy' | 'done' | 'partial' | 'failed'
 
 interface AccountsProps {
   openGroups: Record<GroupId, boolean>
@@ -21,14 +21,17 @@ interface AccountsProps {
   groups: AccountGroup[] | null
   summary: LiveSummary | null
   netWorthHistory: NetWorthHistory | null
-  menuSel: Record<MenuKey, number>
-  onMenuSelect: (key: MenuKey, index: number) => void
+  rangeIndex: number
+  onRangeSelect: (index: number) => void
 }
 
 const REFRESH_LABELS: Record<RefreshState, string> = {
   idle: 'Refresh all',
   busy: 'Refreshing…',
   done: 'Updated just now',
+  // Said out loud: a refresh that skipped a bank used to report success.
+  partial: 'Some banks need attention',
+  failed: "Couldn't refresh",
 }
 
 function AccountRow({ account, onOpen }: { account: Account; onOpen: () => void }) {
@@ -41,7 +44,9 @@ function AccountRow({ account, onOpen }: { account: Account; onOpen: () => void 
       </div>
       <div className="acct-row-right pv">
         <div className="acct-row-balance">{account.balance}</div>
-        <div className="acct-row-updated">{account.updated}</div>
+        <div className={`acct-row-updated${account.stale ? ' stale' : ''}`}>
+          {account.stale ? `Last updated ${account.updated}` : account.updated}
+        </div>
       </div>
     </div>
   )
@@ -104,8 +109,8 @@ export function Accounts({
   groups,
   summary,
   netWorthHistory,
-  menuSel,
-  onMenuSelect,
+  rangeIndex,
+  onRangeSelect,
 }: AccountsProps) {
   const percentMode = summaryMode === 'percent'
   const connected = Boolean(groups && groups.length > 0)
@@ -139,8 +144,8 @@ export function Accounts({
               <NetWorthCard
                 netWorth={summary.netWorth}
                 history={netWorthHistory}
-                menuSel={menuSel}
-                onMenuSelect={onMenuSelect}
+                rangeIndex={rangeIndex}
+                onRangeSelect={onRangeSelect}
               />
             </div>
 
@@ -151,8 +156,6 @@ export function Accounts({
                     <div className="acct-group-header" onClick={() => onToggleGroup(group.id)}>
                       <GroupChevron open={openGroups[group.id]} />
                       <span className="acct-group-title">{group.label}</span>
-                      {group.change && <span className="acct-group-change">{group.change}</span>}
-                      <span className="acct-group-note">{group.changeNote}</span>
                       <span className="acct-group-total pv">{group.total}</span>
                     </div>
                     {openGroups[group.id] &&

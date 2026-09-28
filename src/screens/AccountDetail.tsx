@@ -4,7 +4,8 @@ import { TransactionRow } from '../components/TransactionRow'
 
 interface AccountDetailProps {
   account: Account
-  activity: Transaction[]
+  /** null while this account's own transactions are loading. */
+  activity: Transaction[] | null
   onBack: () => void
   onViewTransactions: () => void
 }
@@ -36,7 +37,9 @@ export function AccountDetail({ account, activity, onBack, onViewTransactions }:
               <div className="num pv" style={{ fontSize: 30, fontWeight: 650, letterSpacing: '-0.02em' }}>
                 {account.balance}
               </div>
-              <div style={{ fontSize: 13, color: 'var(--fainter)', marginTop: 2 }}>Updated {account.updated}</div>
+              <div className={`acct-row-updated${account.stale ? ' stale' : ''}`} style={{ fontSize: 13, marginTop: 2 }}>
+                Updated {account.updated}
+              </div>
             </div>
           </div>
           <div className="chart-placeholder" style={{ height: 140, marginTop: 20 }}>
@@ -51,8 +54,10 @@ export function AccountDetail({ account, activity, onBack, onViewTransactions }:
               View all →
             </span>
           </div>
-          {activity.length > 0 ? (
-            activity.map((t) => <TransactionRow key={t.merchant + t.amount + t.sub} transaction={t} />)
+          {activity == null ? (
+            <div style={{ padding: '18px 20px', fontSize: 14, color: 'var(--faint)' }}>Loading…</div>
+          ) : activity.length > 0 ? (
+            activity.map((t) => <TransactionRow key={t.id} transaction={t} />)
           ) : (
             <div style={{ padding: '18px 20px', fontSize: 14, color: 'var(--faint)' }}>
               No activity synced for this account yet.

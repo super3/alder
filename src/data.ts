@@ -1,3 +1,5 @@
+import type { ItemStatus } from './api'
+
 export type Screen = 'dashboard' | 'accounts' | 'accountDetail' | 'transactions' | 'settings'
 
 export type ModalKind = 'addAccount'
@@ -12,14 +14,15 @@ export interface Account {
   initials: string
   avatarBg: string
   avatarFg: string
+  /** "3 hours ago" — from when the bank last answered, not when we rendered. */
   updated: string
+  /** Balances are last-known values because the bank couldn't be reached. */
+  stale: boolean
 }
 
 export interface AccountGroup {
   id: 'cash' | 'credit' | 'invest' | 'property' | 'loans'
   label: string
-  change?: string
-  changeNote: string
   total: string
   accounts: Account[]
 }
@@ -44,24 +47,33 @@ export const CATEGORIES: Record<string, Category> = {
   transfer: { name: 'Transfer', emoji: '🔁', bg: '#F0EEE8', fg: '#5B5F56' },
 }
 
+// The typed view of one transaction. Logic (filters, edits, grouping) reads
+// the typed fields; only the formatted ones are for display. The merchant name
+// never carries a "(pending)" suffix — that's what `pending` is for.
 export interface Transaction {
-  id?: string
+  id: string
+  /** Local calendar date, YYYY-MM-DD. */
+  date: string
   merchant: string
   /** Plaid's cleaned merchant name, offered when reverting an edit. */
-  plaidMerchant?: string
+  plaidMerchant: string
   /** The raw statement descriptor, offered as an alternative name. */
-  statementName?: string
-  edited?: boolean
-  sub: string
-  category: Category
+  statementName: string
+  pending: boolean
+  /** Signed: money in is positive. */
+  amountValue: number
   amount: string
-  positive?: boolean
+  positive: boolean
+  category: Category
+  isTransfer: boolean
+  merchantEdited: boolean
+  categoryEdited: boolean
+  /** Compact second line for the dashboard: "Jul 12 · Groceries". */
+  sub: string
   initials: string
   avatarBg: string
   avatarFg: string
-  // The transactions grid shows the owning account as its own column, with a
-  // small avatar; the dashboard's compact rows only use `sub`.
-  account?: {
+  account: {
     id: string
     name: string
     initials: string
@@ -71,6 +83,7 @@ export interface Transaction {
 }
 
 export interface TransactionDay {
+  date: string
   label: string
   // Signed net for the day, rendered beside the day label.
   net: string
@@ -79,14 +92,14 @@ export interface TransactionDay {
 }
 
 export interface Institution {
+  itemId: string
   name: string
-  /** Plaid item id, needed to disconnect. Absent until items load. */
-  itemId?: string
   sub: string
   initials: string
   avatarBg: string
   avatarFg: string
-  status: 'connected' | 'reconnect'
+  status: ItemStatus
+  lastSynced: string
 }
 
 export const MENUS = {

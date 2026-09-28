@@ -2,7 +2,7 @@ import type { Institution, SettingsSection } from '../data'
 import { Avatar, Toggle } from '../components/primitives'
 import type { SidebarUser } from '../components/Sidebar'
 import type { ThemePref } from '../theme'
-import type { CategoryGroup } from '../categories'
+import type { CategoryGroupsApi } from '../categories'
 import { CategorySettings } from '../components/CategorySettings'
 
 export interface NotifPrefs {
@@ -12,27 +12,36 @@ export interface NotifPrefs {
   updates: boolean
 }
 
-interface SettingsProps {
-  section: SettingsSection
-  onSetSection: (section: SettingsSection) => void
-  notif: NotifPrefs
-  onFlipNotif: (key: keyof NotifPrefs) => void
+export interface ProfileProps {
   user: SidebarUser | null
-  institutions: Institution[] | null
-  onAddAccount: () => void
-  onDisconnect: (itemId: string) => void
-  onManageAccount: () => void
+  onManage: () => void
   onLogIn: () => void
   onSignOut: () => void
+}
+
+export interface PreferencesProps {
+  notif: NotifPrefs
+  onFlipNotif: (key: keyof NotifPrefs) => void
   privacy: boolean
   onTogglePrivacy: () => void
   themePref: ThemePref
   onSetTheme: (pref: ThemePref) => void
-  categoryGroups: CategoryGroup[]
-  onAddGroup: (section: CategoryGroup['section']) => void
-  onRenameGroup: (index: number, name: string) => void
-  onAddCategory: (index: number, emoji: string, name: string) => void
-  onRemoveCategory: (groupIndex: number, catIndex: number) => void
+}
+
+export interface ConnectionsProps {
+  institutions: Institution[]
+  onAdd: () => void
+  onReconnect: (itemId: string) => void
+  onDisconnect: (itemId: string) => void
+}
+
+interface SettingsProps {
+  section: SettingsSection
+  onSetSection: (section: SettingsSection) => void
+  profile: ProfileProps
+  preferences: PreferencesProps
+  connections: ConnectionsProps
+  categories: CategoryGroupsApi
 }
 
 const THEME_OPTIONS: { value: ThemePref; label: string }[] = [
@@ -56,31 +65,19 @@ const NOTIF_ROWS: { key: keyof NotifPrefs; title: string; sub: string }[] = [
   { key: 'updates', title: 'Product updates', sub: 'Occasional news about new features' },
 ]
 
+const STATUS_LABELS: Record<Institution['status'], string> = {
+  ok: 'Connected',
+  login_required: 'Sign-in needed',
+  error: 'Sync error',
+}
+
 const CONNECTED_PILL = { background: 'oklch(0.95 0.04 165)', color: 'oklch(0.4 0.09 165)' }
 const RECONNECT_PILL = { background: 'oklch(0.96 0.05 85)', color: 'oklch(0.5 0.11 70)' }
 
-export function Settings({
-  section,
-  onSetSection,
-  notif,
-  onFlipNotif,
-  user,
-  institutions,
-  onAddAccount,
-  onDisconnect,
-  onManageAccount,
-  onLogIn,
-  onSignOut,
-  privacy,
-  onTogglePrivacy,
-  themePref,
-  onSetTheme,
-  categoryGroups,
-  onAddGroup,
-  onRenameGroup,
-  onAddCategory,
-  onRemoveCategory,
-}: SettingsProps) {
+export function Settings({ section, onSetSection, profile, preferences, connections, categories }: SettingsProps) {
+  const { user, onManage: onManageAccount, onLogIn, onSignOut } = profile
+  const { notif, onFlipNotif, privacy, onTogglePrivacy, themePref, onSetTheme } = preferences
+  const { institutions, onAdd: onAddAccount, onReconnect, onDisconnect } = connections
   return (
     <div className="screen">
       <div className="screen-header">
@@ -196,11 +193,11 @@ export function Settings({
 
             {section === 'categories' && (
               <CategorySettings
-                groups={categoryGroups}
-                onAddGroup={onAddGroup}
-                onRenameGroup={onRenameGroup}
-                onAddCategory={onAddCategory}
-                onRemoveCategory={onRemoveCategory}
+                groups={categories.groups}
+                onAddGroup={categories.addGroup}
+                onRenameGroup={categories.renameGroup}
+                onAddCategory={categories.addCategory}
+                onRemoveCategory={categories.removeCategory}
               />
             )}
 
@@ -289,10 +286,10 @@ export function Settings({
                     + Add
                   </div>
                 </div>
-                {institutions && institutions.length > 0 ? (
+                {institutions.length > 0 ? (
                   institutions.map((inst) => (
                     <div
-                      key={inst.name}
+                      key={inst.itemId}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -304,32 +301,34 @@ export function Settings({
                       <Avatar initials={inst.initials} bg={inst.avatarBg} fg={inst.avatarFg} size={36} fontSize={13} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 15, fontWeight: 600 }}>{inst.name}</div>
-                        <div style={{ fontSize: 13.5, color: 'var(--faint)' }}>{inst.sub}</div>
+                        <div style={{ fontSize: 13.5, color: 'var(--faint)' }}>
+                          {inst.sub} · Synced {inst.lastSynced}
+                        </div>
                       </div>
-                      <span
-                        className="status-pill"
-                        style={inst.status === 'connected' ? CONNECTED_PILL : RECONNECT_PILL}
-                      >
-                        {inst.status === 'connected' ? 'Connected' : 'Reconnect'}
+                      <span className="status-pill" style={inst.status === 'ok' ? CONNECTED_PILL : RECONNECT_PILL}>
+                        {STATUS_LABELS[inst.status]}
                       </span>
-                      {inst.itemId && (
-                        <div
-                          className="btn-small danger"
-                          onClick={() => {
-                            // Plaid bills per item per month until /item/remove
-                            // is called, so this is not just a local delete.
-                            if (
-                              window.confirm(
-                                `Disconnect ${inst.name}? Its accounts and transactions will be removed from Alder and Plaid will stop syncing it.`,
-                              )
-                            ) {
-                              onDisconnect(inst.itemId!)
-                            }
-                          }}
-                        >
-                          Disconnect
+                      {inst.status !== 'ok' && (
+                        <div className="btn-small" onClick={() => onReconnect(inst.itemId)}>
+                          Reconnect
                         </div>
                       )}
+                      <div
+                        className="btn-small danger"
+                        onClick={() => {
+                          // Plaid bills per item per month until /item/remove
+                          // is called, so this is not just a local delete.
+                          if (
+                            window.confirm(
+                              `Disconnect ${inst.name}? Its accounts and transactions will be removed from Alder and Plaid will stop syncing it.`,
+                            )
+                          ) {
+                            onDisconnect(inst.itemId)
+                          }
+                        }}
+                      >
+                        Disconnect
+                      </div>
                     </div>
                   ))
                 ) : (

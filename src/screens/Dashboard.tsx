@@ -1,4 +1,4 @@
-import type { MenuKey, Transaction } from '../data'
+import type { Transaction } from '../data'
 import { Menu, MenuCheckItem } from '../components/menu'
 import { TransactionRow } from '../components/TransactionRow'
 import { EmptyState } from '../components/EmptyState'
@@ -18,8 +18,8 @@ interface DashboardProps {
   onViewTransactions: () => void
   netWorth: string | null
   netWorthHistory: NetWorthHistory | null
-  menuSel: Record<MenuKey, number>
-  onMenuSelect: (key: MenuKey, index: number) => void
+  rangeIndex: number
+  onRangeSelect: (index: number) => void
   recent: Transaction[] | null
   cashFlow: CashFlow | null
   onAddAccount: () => void
@@ -31,8 +31,8 @@ export function Dashboard({
   onViewTransactions,
   netWorth,
   netWorthHistory,
-  menuSel,
-  onMenuSelect,
+  rangeIndex,
+  onRangeSelect,
   recent,
   cashFlow,
   onAddAccount,
@@ -76,8 +76,8 @@ export function Dashboard({
               <NetWorthCard
                 netWorth={netWorth}
                 history={netWorthHistory}
-                menuSel={menuSel}
-                onMenuSelect={onMenuSelect}
+                rangeIndex={rangeIndex}
+                onRangeSelect={onRangeSelect}
               />
             )}
 
@@ -93,7 +93,7 @@ export function Dashboard({
                     </span>
                   </div>
                   {recent && recent.length > 0 ? (
-                    recent.map((t) => <TransactionRow key={t.merchant + t.amount + t.sub} transaction={t} />)
+                    recent.map((t) => <TransactionRow key={t.id} transaction={t} />)
                   ) : (
                     <div style={{ padding: '18px 20px', fontSize: 14, color: 'var(--faint)' }}>
                       No transactions synced yet — they'll appear here shortly after you connect a bank.

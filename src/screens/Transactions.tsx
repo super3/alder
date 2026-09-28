@@ -1,111 +1,58 @@
-import { MENUS, type MenuKey, type TransactionDay } from '../data'
+import { useMemo, useState } from 'react'
+import { MENUS } from '../data'
 import { Menu, MenuCheckItem, MenuOption } from '../components/menu'
 import { EmptyState } from '../components/EmptyState'
 import { EditableTransactionRow } from '../components/EditableTransactionRow'
 import type { CategoryGroup } from '../categories'
+import type { OverridePatch } from '../api'
 import { CalendarIcon, FilterIcon } from '../components/icons'
-
-export interface TxFilters {
-  pending: boolean
-  income: boolean
-  transfers: boolean
-}
+import { groupByDay, toTransaction } from '../plaidMapping'
+import { useTransactionsPage, type TxFilters } from '../hooks/useTransactionsPage'
 
 interface TransactionsProps {
-  menuSel: Record<MenuKey, number>
-  onMenuSelect: (key: MenuKey, index: number) => void
-  filters: TxFilters
-  onFlipFilter: (key: keyof TxFilters) => void
-  onAddAccount: () => void
-  days: TransactionDay[] | null
-  count: number
+  hasAccounts: boolean
+  version: number
   categoryGroups: CategoryGroup[]
-  onRenameMerchant: (transactionId: string, name: string | null) => void
-  onSetCategory: (transactionId: string, category: string | null) => void
+  saveOverride: (transactionId: string, patch: OverridePatch) => Promise<void>
+  onError: (message: string) => void
+  onAddAccount: () => void
   onOpenAccount: (accountId: string) => void
 }
 
-// Days carry a "Today · Sat, Jul 12"-style label, so the range is applied to
-// the parsed date embedded in each transaction's day rather than re-deriving.
-function withinRange(label: string, range: string): boolean {
-  const parsed = Date.parse(`${label.split('·').pop()!.trim()} ${new Date().getFullYear()}`)
-  if (Number.isNaN(parsed)) return true
-  const date = new Date(parsed)
-  const now = new Date()
-  if (date > now) date.setFullYear(date.getFullYear() - 1)
-  switch (range) {
-    case 'Last month': {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      const end = new Date(now.getFullYear(), now.getMonth(), 0)
-      return date >= start && date <= end
-    }
-    case 'Last 3 months': {
-      const start = new Date(now)
-      start.setMonth(start.getMonth() - 3)
-      return date >= start
-    }
-    case 'Year to date':
-      return date.getFullYear() === now.getFullYear()
-    case 'This month':
-    default:
-      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
-  }
-}
-
-function applyFilters(
-  days: TransactionDay[] | null,
-  filters: TxFilters,
-  rangeIndex: number,
-): TransactionDay[] {
-  if (!days) return []
-  const range = MENUS.txDate[rangeIndex]
-  return days
-    .filter((day) => withinRange(day.label, range))
-    .map((day) => ({
-      ...day,
-      transactions: day.transactions.filter((t) => {
-        if (filters.pending && !t.merchant.includes('(pending)')) return false
-        if (filters.income && !t.positive) return false
-        if (!filters.transfers && t.category.name === 'Transfer') return false
-        return true
-      }),
-    }))
-    .filter((day) => day.transactions.length > 0)
-}
-
 export function Transactions({
-  menuSel,
-  onMenuSelect,
-  filters,
-  onFlipFilter,
-  onAddAccount,
-  days,
-  count,
+  hasAccounts,
+  version,
   categoryGroups,
-  onRenameMerchant,
-  onSetCategory,
+  saveOverride,
+  onError,
+  onAddAccount,
   onOpenAccount,
 }: TransactionsProps) {
-  const connected = Boolean(days && days.length > 0)
-  const visible = applyFilters(days, filters, menuSel.txDate)
-  const shown = visible.reduce((n, day) => n + day.transactions.length, 0)
+  const [rangeIndex, setRangeIndex] = useState(0)
+  const [filters, setFilters] = useState<TxFilters>({ pending: false, income: false, transfers: true })
+  const range = MENUS.txDate[rangeIndex]
+  const page = useTransactionsPage(range, filters, version, saveOverride, onError)
+  const days = useMemo(() => groupByDay((page.rows ?? []).map(toTransaction)), [page.rows])
+  const shown = page.rows?.length ?? 0
+  const flip = (key: keyof TxFilters) => setFilters((f) => ({ ...f, [key]: !f[key] }))
+
   return (
     <div className="screen">
       <div className="screen-header">
         <span className="screen-title">Transactions</span>
-        {connected && (
+        {hasAccounts && (
           <div className="screen-actions">
             <Menu
               id="txDate"
               trigger={
                 <div className="btn-toolbar">
                   <CalendarIcon />
-                  <span>{MENUS.txDate[menuSel.txDate]}</span>
+                  <span>{range}</span>
                 </div>
               }
             >
               {MENUS.txDate.map((opt, i) => (
-                <MenuOption key={opt} label={opt} onSelect={() => onMenuSelect('txDate', i)} />
+                <MenuOption key={opt} label={opt} onSelect={() => setRangeIndex(i)} />
               ))}
             </Menu>
             <Menu
@@ -117,19 +64,15 @@ export function Transactions({
                 </div>
               }
             >
-              <MenuCheckItem label="Pending only" checked={filters.pending} onToggle={() => onFlipFilter('pending')} />
-              <MenuCheckItem label="Income only" checked={filters.income} onToggle={() => onFlipFilter('income')} />
-              <MenuCheckItem
-                label="Include transfers"
-                checked={filters.transfers}
-                onToggle={() => onFlipFilter('transfers')}
-              />
+              <MenuCheckItem label="Pending only" checked={filters.pending} onToggle={() => flip('pending')} />
+              <MenuCheckItem label="Income only" checked={filters.income} onToggle={() => flip('income')} />
+              <MenuCheckItem label="Include transfers" checked={filters.transfers} onToggle={() => flip('transfers')} />
             </Menu>
           </div>
         )}
       </div>
       <div className="screen-body">
-        {!connected ? (
+        {!hasAccounts ? (
           <EmptyState
             title="No transactions yet"
             sub="Transactions sync automatically once you connect a bank from the Accounts screen."
@@ -140,34 +83,45 @@ export function Transactions({
           <>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
               <span className="num" style={{ fontSize: 14, color: 'var(--muted)' }}>
-                {shown === count ? `${count} transactions synced` : `${shown} of ${count} transactions`}
+                {page.rows == null
+                  ? 'Loading…'
+                  : page.hasMore
+                    ? `Showing ${shown} of ${page.total} transactions`
+                    : `${page.total} transaction${page.total === 1 ? '' : 's'}`}
               </span>
             </div>
 
-            {visible.length === 0 ? (
+            {page.rows != null && days.length === 0 ? (
               <div className="card" style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--faint)' }}>
-                No transactions match these filters.
+                No transactions in this period match these filters.
               </div>
             ) : (
               <div className="card tx-card">
-                {visible.map((day) => (
-                  <div key={day.label}>
+                {days.map((day) => (
+                  <div key={day.date}>
                     <div className="day-header-row">
                       <span className="day-header-label">{day.label}</span>
                       <span className={`day-header-net num${day.netPositive ? ' positive' : ''}`}>{day.net}</span>
                     </div>
                     {day.transactions.map((t) => (
                       <EditableTransactionRow
-                        key={t.id ?? t.merchant + t.amount + t.sub}
+                        key={t.id}
                         transaction={t}
                         categoryGroups={categoryGroups}
-                        onRenameMerchant={onRenameMerchant}
-                        onSetCategory={onSetCategory}
+                        onEdit={page.edit}
                         onOpenAccount={onOpenAccount}
                       />
                     ))}
                   </div>
                 ))}
+              </div>
+            )}
+
+            {page.hasMore && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
+                <div className="btn" onClick={page.loading ? undefined : page.loadMore}>
+                  {page.loading ? 'Loading…' : 'Load more'}
+                </div>
               </div>
             )}
           </>
