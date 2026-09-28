@@ -1,6 +1,7 @@
 const express = require('express')
 const crypto = require('crypto')
 const { syncTransactions } = require('../sync')
+const { applyItemWebhook } = require('../itemHealth')
 const { verifyPlaidWebhook } = require('../plaidWebhookVerify')
 
 const router = express.Router()
@@ -49,6 +50,14 @@ router.post('/webhook', async (req, res) => {
   if (type === 'TRANSACTIONS' && code === 'SYNC_UPDATES_AVAILABLE' && itemId) {
     syncTransactions(itemId).catch((err) =>
       console.error('Webhook-triggered sync failed:', err?.response?.data || err.message),
+    )
+  }
+
+  // A connection breaking (or being repaired) is recorded as soon as Plaid
+  // says so, rather than waiting for the next sync to trip over it.
+  if (type === 'ITEM' && itemId) {
+    applyItemWebhook(itemId, code, req.body).catch((err) =>
+      console.error('Recording item webhook failed:', err.message),
     )
   }
 

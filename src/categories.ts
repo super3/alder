@@ -126,3 +126,5 @@ export function useCategoryGroups() {
 
   return { groups, addGroup, renameGroup, addCategory, removeCategory }
 }
+
+export type CategoryGroupsApi = ReturnType<typeof useCategoryGroups>

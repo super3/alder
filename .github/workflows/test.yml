@@ -39,4 +39,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run lint
+      # vitest.config.ts holds the date and Plaid-mapping logic to 100%
+      # coverage, same as the server.
+      - run: npm test
       - run: npm run build

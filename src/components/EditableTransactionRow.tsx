@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { Transaction } from '../data'
 import { CATEGORIES } from '../data'
 import type { CategoryGroup } from '../categories'
+import type { OverridePatch } from '../api'
 import { Avatar } from './primitives'
 
 interface EditableTransactionRowProps {
   transaction: Transaction
   categoryGroups: CategoryGroup[]
-  onRenameMerchant: (transactionId: string, name: string | null) => void
-  onSetCategory: (transactionId: string, category: string | null) => void
+  onEdit: (transactionId: string, patch: OverridePatch) => void
   onOpenAccount: (accountId: string) => void
 }
 
@@ -36,8 +36,7 @@ function useDismiss(open: boolean, close: () => void) {
 export function EditableTransactionRow({
   transaction: t,
   categoryGroups,
-  onRenameMerchant,
-  onSetCategory,
+  onEdit,
   onOpenAccount,
 }: EditableTransactionRowProps) {
   const [merchantOpen, setMerchantOpen] = useState(false)
@@ -52,20 +51,25 @@ export function EditableTransactionRow({
     setMerchantOpen(true)
   }
 
-  const commit = (name: string | null) => {
-    if (t.id) onRenameMerchant(t.id, name)
+  // Choosing Plaid's own name (or clearing the field) resets the override
+  // rather than pinning a copy that would stop following Plaid's updates.
+  const renameTo = (raw: string) => {
+    const name = raw.trim()
     setMerchantOpen(false)
+    if (name === t.merchant) return
+    onEdit(t.id, { merchant_name: !name || name === t.plaidMerchant ? null : name })
   }
 
+  // Re-picking the category already shown is a no-op, not an override that
+  // would pin Plaid's current guess.
   const chooseCategory = (name: string | null) => {
-    if (t.id) onSetCategory(t.id, name)
     setCategoryOpen(false)
+    if (name === null ? !t.categoryEdited : name === t.category.name) return
+    onEdit(t.id, { category: name })
   }
 
   // Plaid's cleaned name and the raw statement descriptor, minus duplicates.
-  const suggestions = [t.plaidMerchant, t.statementName].filter(
-    (name, i, arr): name is string => Boolean(name) && arr.indexOf(name) === i,
-  )
+  const suggestions = [...new Set([t.plaidMerchant, t.statementName])].filter(Boolean)
 
   const categoryNames = [
     ...new Set([
@@ -81,8 +85,9 @@ export function EditableTransactionRow({
         <div className="tx-cell-edit" ref={merchantRef}>
           <button type="button" className="tx-grid-name tx-editable" onClick={openMerchant} title="Rename merchant">
             {t.merchant}
-            {t.edited && <span className="tx-edited-dot" title="Edited" />}
+            {(t.merchantEdited || t.categoryEdited) && <span className="tx-edited-dot" title="Edited" />}
           </button>
+          {t.pending && <span className="tx-pending">Pending</span>}
           {merchantOpen && (
             <div className="tx-pop">
               <input
@@ -91,22 +96,22 @@ export function EditableTransactionRow({
                 autoFocus
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') commit(draft.trim() || null)
+                  if (e.key === 'Enter') renameTo(draft)
                 }}
               />
               <div className="tx-pop-label">Use instead</div>
               {suggestions.map((name) => (
-                <div key={name} className="tx-pop-item" onClick={() => commit(name)}>
+                <div key={name} className="tx-pop-item" onClick={() => renameTo(name)}>
                   {name}
                 </div>
               ))}
               <div className="tx-pop-sep" />
-              <div className="tx-pop-item" onClick={() => commit(draft.trim() || null)}>
+              <div className="tx-pop-item" onClick={() => renameTo(draft)}>
                 Save
               </div>
-              {t.edited && (
-                <div className="tx-pop-item muted" onClick={() => commit(null)}>
-                  Reset to original
+              {t.merchantEdited && (
+                <div className="tx-pop-item muted" onClick={() => renameTo(t.plaidMerchant)}>
+                  Reset name to original
                 </div>
               )}
             </div>
@@ -139,33 +144,35 @@ export function EditableTransactionRow({
                   </div>
                 ))}
               </div>
-              <div className="tx-pop-sep" />
-              <div className="tx-pop-item muted" onClick={() => chooseCategory(null)}>
-                Reset to original
-              </div>
+              {t.categoryEdited && (
+                <>
+                  <div className="tx-pop-sep" />
+                  <div className="tx-pop-item muted" onClick={() => chooseCategory(null)}>
+                    Reset category to original
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
       </div>
 
       <div className="tx-grid-account">
-        {t.account && (
-          <button
-            type="button"
-            className="tx-editable tx-account-btn"
-            title={`Open ${t.account.name}`}
-            onClick={() => onOpenAccount(t.account!.id)}
-          >
-            <Avatar
-              initials={t.account.initials}
-              bg={t.account.avatarBg}
-              fg={t.account.avatarFg}
-              size={20}
-              fontSize={9}
-            />
-            <span className="tx-grid-truncate">{t.account.name}</span>
-          </button>
-        )}
+        <button
+          type="button"
+          className="tx-editable tx-account-btn"
+          title={`Open ${t.account.name}`}
+          onClick={() => onOpenAccount(t.account.id)}
+        >
+          <Avatar
+            initials={t.account.initials}
+            bg={t.account.avatarBg}
+            fg={t.account.avatarFg}
+            size={20}
+            fontSize={9}
+          />
+          <span className="tx-grid-truncate">{t.account.name}</span>
+        </button>
       </div>
 
       <span className={`tx-grid-amount${t.positive ? ' positive' : ''}`}>{t.amount}</span>

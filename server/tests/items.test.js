@@ -12,16 +12,48 @@ const app = makeApp(itemsRouter)
 beforeEach(() => jest.clearAllMocks())
 
 describe('GET /api/plaid/items', () => {
-  test('lists the connected banks without leaking access tokens', async () => {
+  test('lists connected banks with their health, without leaking access tokens', async () => {
     db.getItemsForUser.mockResolvedValue([
-      { item_id: 'item_1', institution_name: 'First Bank', institution_id: 'ins_1', access_token: 'secret' },
+      {
+        item_id: 'item_1',
+        institution_name: 'First Bank',
+        institution_id: 'ins_1',
+        access_token: 'secret',
+        status: 'ok',
+        error_code: null,
+        last_synced_at: new Date('2026-09-27T08:00:00Z'),
+      },
+      {
+        item_id: 'item_2',
+        institution_name: 'Second Bank',
+        institution_id: 'ins_2',
+        access_token: 'secret-2',
+        status: 'login_required',
+        error_code: 'ITEM_LOGIN_REQUIRED',
+        last_synced_at: null,
+      },
     ])
 
     const res = await request(app).get('/api/plaid/items')
 
     expect(res.status).toBe(200)
     expect(res.body.items).toEqual([
-      { item_id: 'item_1', institution_name: 'First Bank', institution_id: 'ins_1' },
+      {
+        item_id: 'item_1',
+        institution_name: 'First Bank',
+        institution_id: 'ins_1',
+        status: 'ok',
+        error_code: null,
+        last_synced_at: '2026-09-27T08:00:00.000Z',
+      },
+      {
+        item_id: 'item_2',
+        institution_name: 'Second Bank',
+        institution_id: 'ins_2',
+        status: 'login_required',
+        error_code: 'ITEM_LOGIN_REQUIRED',
+        last_synced_at: null,
+      },
     ])
     expect(JSON.stringify(res.body)).not.toContain('secret')
   })
@@ -56,6 +88,23 @@ describe('DELETE /api/plaid/items/:itemId', () => {
     expect(plaidClient.itemRemove).not.toHaveBeenCalled()
     expect(db.deleteItem).not.toHaveBeenCalled()
   })
+
+  // Regression: if our delete failed after Plaid removed the item, every retry
+  // got an error from Plaid and the bank could never be removed.
+  test.each(['ITEM_NOT_FOUND', 'INVALID_ACCESS_TOKEN'])(
+    'finishes a retried disconnect when Plaid already forgot the item (%s)',
+    async (code) => {
+      db.getItemsForUser.mockResolvedValue([{ item_id: 'item_1', access_token: 'tok_1' }])
+      plaidClient.itemRemove.mockRejectedValue(
+        Object.assign(new Error(code), { response: { data: { error_code: code } } }),
+      )
+
+      const res = await request(app).delete('/api/plaid/items/item_1')
+
+      expect(res.status).toBe(200)
+      expect(db.deleteItem).toHaveBeenCalledWith('user_1', 'item_1')
+    },
+  )
 
   test('keeps our rows when Plaid refuses the removal', async () => {
     db.getItemsForUser.mockResolvedValue([{ item_id: 'item_1', access_token: 'tok_1' }])

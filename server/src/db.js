@@ -11,6 +11,11 @@ CREATE TABLE IF NOT EXISTS items (
   institution_id TEXT,
   institution_name TEXT,
   transaction_cursor TEXT,
+  -- 'ok' | 'login_required' | 'error'. Kept current by sync, balances and
+  -- ITEM webhooks so a broken connection is visible instead of silently stale.
+  status TEXT NOT NULL DEFAULT 'ok',
+  error_code TEXT,
+  last_synced_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS items_clerk_user_idx ON items (clerk_user_id);
@@ -177,6 +182,22 @@ async function getAccountsForUser(clerkUserId) {
   return rows
 }
 
+async function getAccountsForItem(itemId) {
+  const { rows } = await pool.query('SELECT * FROM accounts WHERE item_id = $1 ORDER BY id', [itemId])
+  return rows
+}
+
+async function setItemStatus(itemId, status, errorCode = null) {
+  await pool.query('UPDATE items SET status = $2, error_code = $3 WHERE item_id = $1', [itemId, status, errorCode])
+}
+
+async function markItemSynced(itemId) {
+  await pool.query(
+    "UPDATE items SET status = 'ok', error_code = NULL, last_synced_at = now() WHERE item_id = $1",
+    [itemId],
+  )
+}
+
 // pg returns DATE columns as JS Dates, which res.json would serialize as
 // full ISO timestamps; the API contract is a plain YYYY-MM-DD string.
 function toDateString(value) {
@@ -185,25 +206,92 @@ function toDateString(value) {
   return String(value).slice(0, 10)
 }
 
-async function getTransactionsForUser(clerkUserId, limit = 100) {
-  const { rows } = await pool.query(
-    `SELECT t.*, a.name AS account_name, i.institution_name,
-            o.merchant_name AS override_merchant_name,
-            o.category AS override_category
-       FROM transactions t
+// One definition of "a transfer", shared by the list filter and the daily
+// totals so they can't disagree. A user's category edit wins over Plaid's.
+const TRANSFER_PREDICATE = `(COALESCE(o.category, '') = 'Transfer' OR (o.category IS NULL AND COALESCE(t.personal_finance_category, '') LIKE 'TRANSFER%'))`
+
+// FROM/WHERE for a user's live transactions plus optional filters. Every value
+// is bound as a parameter; only fixed clauses are interpolated.
+function transactionScope(clerkUserId, filters) {
+  const where = ['i.clerk_user_id = $1', 't.is_removed = false']
+  const params = [clerkUserId]
+  const bind = (clause, value) => {
+    params.push(value)
+    where.push(`${clause} $${params.length}`)
+  }
+  if (filters.start) bind('t.date >=', filters.start)
+  if (filters.end) bind('t.date <=', filters.end)
+  if (filters.accountId) bind('t.account_id =', filters.accountId)
+  if (filters.pendingOnly) where.push('t.pending = true')
+  if (filters.incomeOnly) where.push('t.amount < 0')
+  if (filters.excludeTransfers) where.push(`NOT ${TRANSFER_PREDICATE}`)
+  return {
+    from: `FROM transactions t
        JOIN accounts a ON a.account_id = t.account_id
        JOIN items i ON i.item_id = a.item_id
        LEFT JOIN transaction_overrides o
          ON o.transaction_id = t.transaction_id AND o.clerk_user_id = i.clerk_user_id
-      WHERE i.clerk_user_id = $1 AND t.is_removed = false
+      WHERE ${where.join(' AND ')}`,
+    params,
+  }
+}
+
+async function getTransactionsForUser(clerkUserId, { limit = 100, offset = 0, ...filters } = {}) {
+  const { from, params } = transactionScope(clerkUserId, filters)
+  const { rows } = await pool.query(
+    `SELECT t.*, a.name AS account_name, i.institution_name,
+            o.merchant_name AS override_merchant_name,
+            o.category AS override_category
+       ${from}
       ORDER BY t.date DESC, t.id DESC
-      LIMIT $2`,
-    [clerkUserId, limit],
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
   )
   return rows.map((row) => ({
     ...row,
     date: toDateString(row.date),
     authorized_date: toDateString(row.authorized_date),
+  }))
+}
+
+async function countTransactionsForUser(clerkUserId, filters = {}) {
+  const { from, params } = transactionScope(clerkUserId, filters)
+  const { rows } = await pool.query(`SELECT COUNT(*)::int AS n ${from}`, params)
+  return rows[0].n
+}
+
+const cents = (value) => Math.round(value * 100) / 100
+
+// Per-day totals over every synced transaction since `start`. The client used
+// to derive these from a single page of 200 rows, which silently flattened any
+// history older than that page. Aggregated here, only the totals cross the
+// wire, and nothing is truncated.
+async function getDailyTotals(clerkUserId, start) {
+  const { from, params } = transactionScope(clerkUserId, { start })
+  const { rows } = await pool.query(
+    `SELECT t.date, t.amount, ${TRANSFER_PREDICATE} AS is_transfer ${from} ORDER BY t.date`,
+    params,
+  )
+  const byDay = new Map()
+  for (const row of rows) {
+    const date = toDateString(row.date)
+    // pg returns NUMERIC as a string.
+    const amount = Number(row.amount)
+    const day = byDay.get(date) || { date, net: 0, income: 0, spending: 0 }
+    // Plaid amounts are positive for money out; net worth moves by the negation.
+    day.net -= amount
+    if (!row.is_transfer) {
+      if (amount < 0) day.income -= amount
+      else day.spending += amount
+    }
+    byDay.set(date, day)
+  }
+  // Rows arrive date-ordered, so the Map already iterates oldest-first.
+  return [...byDay.values()].map((day) => ({
+    date: day.date,
+    net: cents(day.net),
+    income: cents(day.income),
+    spending: cents(day.spending),
   }))
 }
 
@@ -222,15 +310,29 @@ async function ownsTransaction(clerkUserId, transactionId) {
   return rows.length > 0
 }
 
-async function setTransactionOverride(clerkUserId, transactionId, { merchantName, category }) {
+const OVERRIDE_COLUMNS = { merchantName: 'merchant_name', category: 'category' }
+
+// Partial: only the fields present in `patch` are written, so renaming a
+// merchant can't wipe a category edit (it used to — every write upserted both
+// columns, nulling whichever one the request left out). A field set to null
+// resets just that field.
+async function setTransactionOverride(clerkUserId, transactionId, patch) {
+  const fields = Object.keys(OVERRIDE_COLUMNS).filter((key) => key in patch)
+  if (fields.length === 0) return
+  const columns = fields.map((key) => OVERRIDE_COLUMNS[key])
   await pool.query(
-    `INSERT INTO transaction_overrides (clerk_user_id, transaction_id, merchant_name, category)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO transaction_overrides (clerk_user_id, transaction_id, ${columns.join(', ')})
+     VALUES ($1, $2, ${columns.map((_, i) => `$${i + 3}`).join(', ')})
      ON CONFLICT (clerk_user_id, transaction_id) DO UPDATE SET
-       merchant_name = EXCLUDED.merchant_name,
-       category = EXCLUDED.category,
+       ${columns.map((column) => `${column} = EXCLUDED.${column}`).join(', ')},
        updated_at = now()`,
-    [clerkUserId, transactionId, merchantName ?? null, category ?? null],
+    [clerkUserId, transactionId, ...fields.map((key) => patch[key])],
+  )
+  // A row with nothing left overridden is the same as no row.
+  await pool.query(
+    `DELETE FROM transaction_overrides
+      WHERE clerk_user_id = $1 AND transaction_id = $2 AND merchant_name IS NULL AND category IS NULL`,
+    [clerkUserId, transactionId],
   )
 }
 
@@ -241,26 +343,39 @@ async function clearTransactionOverride(clerkUserId, transactionId) {
   ])
 }
 
-// Deleting the item cascades to its accounts; transactions and overrides are
-// keyed by account_id / transaction_id rather than by a foreign key, so they
-// are swept explicitly first.
-async function deleteItem(clerkUserId, itemId) {
-  const { rows } = await pool.query(
-    'SELECT a.account_id FROM accounts a JOIN items i ON i.item_id = a.item_id WHERE i.clerk_user_id = $1 AND a.item_id = $2',
-    [clerkUserId, itemId],
-  )
-  for (const { account_id: accountId } of rows) {
-    const { rows: txns } = await pool.query('SELECT transaction_id FROM transactions WHERE account_id = $1', [accountId])
-    for (const { transaction_id: transactionId } of txns) {
-      await pool.query('DELETE FROM transaction_overrides WHERE clerk_user_id = $1 AND transaction_id = $2', [
-        clerkUserId,
-        transactionId,
-      ])
-    }
-    await pool.query('DELETE FROM transactions WHERE account_id = $1', [accountId])
-    await pool.query('DELETE FROM accounts WHERE account_id = $1', [accountId])
+async function withTransaction(fn) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const result = await fn(client)
+    await client.query('COMMIT')
+    return result
+  } catch (err) {
+    await client.query('ROLLBACK')
+    throw err
+  } finally {
+    client.release()
   }
-  await pool.query('DELETE FROM items WHERE clerk_user_id = $1 AND item_id = $2', [clerkUserId, itemId])
+}
+
+// Transactions and overrides hang off account_id / transaction_id rather than
+// a foreign key, so they're swept explicitly — set-based, and inside one
+// database transaction so a failure part-way can't leave half a bank behind.
+// Every statement is scoped by clerk_user_id, so it's a no-op on someone
+// else's item.
+async function deleteItem(clerkUserId, itemId) {
+  const ownedAccounts = `SELECT a.account_id FROM accounts a JOIN items i ON i.item_id = a.item_id
+                          WHERE i.clerk_user_id = $1 AND a.item_id = $2`
+  await withTransaction(async (client) => {
+    await client.query(
+      `DELETE FROM transaction_overrides WHERE clerk_user_id = $1 AND transaction_id IN (
+         SELECT transaction_id FROM transactions WHERE account_id IN (${ownedAccounts}))`,
+      [clerkUserId, itemId],
+    )
+    await client.query(`DELETE FROM transactions WHERE account_id IN (${ownedAccounts})`, [clerkUserId, itemId])
+    await client.query(`DELETE FROM accounts WHERE account_id IN (${ownedAccounts})`, [clerkUserId, itemId])
+    await client.query('DELETE FROM items WHERE clerk_user_id = $1 AND item_id = $2', [clerkUserId, itemId])
+  })
 }
 
 module.exports = {
@@ -275,10 +390,16 @@ module.exports = {
   upsertTransaction,
   markTransactionRemoved,
   getAccountsForUser,
+  getAccountsForItem,
+  setItemStatus,
+  markItemSynced,
   getTransactionsForUser,
+  countTransactionsForUser,
+  getDailyTotals,
   ownsTransaction,
   setTransactionOverride,
   clearTransactionOverride,
+  withTransaction,
   deleteItem,
   toDateString,
 }

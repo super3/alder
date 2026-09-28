@@ -920,7 +920,7 @@ a:hover {
 }
 
 .acct-row-right {
-  width: 110px;
+  min-width: 110px;
   text-align: right;
   flex-shrink: 0;
 }
@@ -934,6 +934,7 @@ a:hover {
 .acct-row-updated {
   font-size: 12.5px;
   color: var(--fainter);
+  white-space: nowrap;
 }
 
 /* ============ Settings ============ */
@@ -1610,4 +1611,26 @@ a:hover {
 .tx-card > div:last-child .tx-grid-row:last-child {
   border-bottom-left-radius: 11px;
   border-bottom-right-radius: 11px;
+}
+
+/* Pending is a typed flag rendered as a tag, not text glued onto the name. */
+.tx-pending {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--track);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Balances served from the last successful fetch because the bank is down. */
+.acct-row-updated.stale {
+  color: oklch(0.55 0.12 60);
+}
+
+:root[data-theme='dark'] .acct-row-updated.stale {
+  color: oklch(0.78 0.12 70);
 }

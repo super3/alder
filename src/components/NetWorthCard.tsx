@@ -1,4 +1,4 @@
-import { MENUS, type MenuKey } from '../data'
+import { MENUS } from '../data'
 import { SelectMenu } from './menu'
 import { NetWorthChart } from './NetWorthChart'
 import type { NetWorthHistory } from '../plaidMapping'
@@ -6,14 +6,14 @@ import type { NetWorthHistory } from '../plaidMapping'
 interface NetWorthCardProps {
   netWorth: string
   history: NetWorthHistory | null
-  menuSel: Record<MenuKey, number>
-  onMenuSelect: (key: MenuKey, index: number) => void
+  rangeIndex: number
+  onRangeSelect: (index: number) => void
   height?: number
 }
 
 // One card, rendered identically on the Dashboard and the Accounts screen, so
 // the two can never drift in value, label or chart treatment.
-export function NetWorthCard({ netWorth, history, menuSel, onMenuSelect, height = 240 }: NetWorthCardProps) {
+export function NetWorthCard({ netWorth, history, rangeIndex, onRangeSelect, height = 240 }: NetWorthCardProps) {
   return (
     <div className="card" style={{ padding: '22px 26px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
@@ -44,8 +44,8 @@ export function NetWorthCard({ netWorth, history, menuSel, onMenuSelect, height 
           <SelectMenu
             id="nwRange"
             options={MENUS.nwRange}
-            selected={menuSel.nwRange}
-            onSelect={(i) => onMenuSelect('nwRange', i)}
+            selected={rangeIndex}
+            onSelect={onRangeSelect}
           />
         </div>
       </div>
@@ -58,7 +58,7 @@ export function NetWorthCard({ netWorth, history, menuSel, onMenuSelect, height 
           {/* The series is reconstructed from transactions, so say what it omits. */}
           <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--fainter)' }}>
             Reconstructed from your synced transactions — it doesn't include investment market
-            movement or activity from before your first synced transaction.
+            movement or anything before your bank's history begins.
           </div>
         </>
       ) : (

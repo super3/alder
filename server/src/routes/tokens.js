@@ -7,17 +7,29 @@ const router = express.Router()
 
 // Create a Link token for the signed-in user. The frontend passes this to
 // Plaid Link (react-plaid-link) to open the bank-connection flow.
+//
+// With { item_id }, the token opens Link in update mode instead: the user signs
+// back in to an existing connection (after ITEM_LOGIN_REQUIRED, say) without
+// creating a new item or re-requesting products.
 router.post('/link-token', async (req, res, next) => {
   try {
-    const response = await plaidClient.linkTokenCreate({
+    const { item_id: itemId } = req.body || {}
+    const base = {
       user: { client_user_id: req.userId },
       client_name: 'Alder',
-      products: ['transactions'],
-      transactions: { days_requested: 730 },
       country_codes: ['US'],
       language: 'en',
       webhook: process.env.PLAID_WEBHOOK_URL || undefined,
-    })
+    }
+    let request
+    if (itemId) {
+      const item = (await db.getItemsForUser(req.userId)).find((i) => i.item_id === itemId)
+      if (!item) return res.status(404).json({ error: 'Unknown item' })
+      request = { ...base, access_token: item.access_token }
+    } else {
+      request = { ...base, products: ['transactions'], transactions: { days_requested: 730 } }
+    }
+    const response = await plaidClient.linkTokenCreate(request)
     res.json({ link_token: response.data.link_token })
   } catch (err) {
     next(err)
