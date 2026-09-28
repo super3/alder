@@ -48,6 +48,29 @@ describe('POST /api/plaid/link-token', () => {
     )
   })
 
+  test('with an item_id, opens Link in update mode for that item', async () => {
+    db.getItemsForUser.mockResolvedValue([{ item_id: 'item_1', access_token: 'tok_1' }])
+    plaidClient.linkTokenCreate.mockResolvedValue({ data: { link_token: 'update-token' } })
+
+    const res = await request(app).post('/api/plaid/link-token').send({ item_id: 'item_1' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ link_token: 'update-token' })
+    const [call] = plaidClient.linkTokenCreate.mock.calls[0]
+    expect(call.access_token).toBe('tok_1')
+    // Update mode re-authenticates; it must not request products afresh.
+    expect(call.products).toBeUndefined()
+  })
+
+  test("refuses update mode for an item that isn't the caller's", async () => {
+    db.getItemsForUser.mockResolvedValue([{ item_id: 'mine', access_token: 'tok' }])
+
+    const res = await request(app).post('/api/plaid/link-token').send({ item_id: 'theirs' })
+
+    expect(res.status).toBe(404)
+    expect(plaidClient.linkTokenCreate).not.toHaveBeenCalled()
+  })
+
   test('passes PLAID_WEBHOOK_URL when configured', async () => {
     process.env.PLAID_WEBHOOK_URL = 'https://api.example.com/api/plaid/webhook'
     plaidClient.linkTokenCreate.mockResolvedValue({ data: { link_token: 'link-token-2' } })

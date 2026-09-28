@@ -1,0 +1,11 @@
+[
+  { "pfc": null, "override": null, "transfer": false },
+  { "pfc": "FOOD_AND_DRINK", "override": null, "transfer": false },
+  { "pfc": "TRANSFER_IN", "override": null, "transfer": true },
+  { "pfc": "TRANSFER_OUT", "override": null, "transfer": true },
+  { "pfc": "LOAN_PAYMENTS", "override": null, "transfer": false },
+  { "pfc": "TRANSFER_OUT", "override": "Savings", "transfer": false },
+  { "pfc": "FOOD_AND_DRINK", "override": "Transfer", "transfer": true },
+  { "pfc": null, "override": "Transfer", "transfer": true },
+  { "pfc": "TRANSFER_IN", "override": "Income", "transfer": false }
+]

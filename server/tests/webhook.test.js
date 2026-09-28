@@ -1,8 +1,10 @@
 jest.mock('../src/sync', () => ({ syncTransactions: jest.fn() }))
+jest.mock('../src/itemHealth', () => ({ applyItemWebhook: jest.fn() }))
 jest.mock('../src/plaid', () => ({ plaidClient: { webhookVerificationKeyGet: jest.fn() } }))
 
 const request = require('supertest')
 const { syncTransactions } = require('../src/sync')
+const { applyItemWebhook } = require('../src/itemHealth')
 const { plaidClient } = require('../src/plaid')
 const { _resetVerifierState } = require('../src/plaidWebhookVerify')
 const webhookRouter = require('../src/routes/webhook')
@@ -110,10 +112,37 @@ test('logs but still succeeds when the sync fails', async () => {
   expect(console.error).toHaveBeenCalledWith('Webhook-triggered sync failed:', 'sync failed')
 })
 
-test('ignores other webhook types', async () => {
-  const res = await post({ webhook_type: 'ITEM', webhook_code: 'ERROR', item_id: 'item_1' })
+test('an ITEM webhook records connection health instead of syncing', async () => {
+  applyItemWebhook.mockResolvedValue()
+  const body = {
+    webhook_type: 'ITEM',
+    webhook_code: 'ERROR',
+    item_id: 'item_1',
+    error: { error_code: 'ITEM_LOGIN_REQUIRED' },
+  }
+
+  const res = await post(body)
+
   expect(res.status).toBe(200)
   expect(syncTransactions).not.toHaveBeenCalled()
+  expect(applyItemWebhook).toHaveBeenCalledWith('item_1', 'ERROR', body)
+})
+
+test('logs but still succeeds when recording item health fails', async () => {
+  applyItemWebhook.mockRejectedValue(new Error('db down'))
+
+  const res = await post({ webhook_type: 'ITEM', webhook_code: 'LOGIN_REPAIRED', item_id: 'item_1' })
+
+  expect(res.status).toBe(200)
+  await flush()
+  expect(console.error).toHaveBeenCalledWith('Recording item webhook failed:', 'db down')
+})
+
+test('ignores other webhook types', async () => {
+  const res = await post({ webhook_type: 'HOLDINGS', webhook_code: 'DEFAULT_UPDATE', item_id: 'item_1' })
+  expect(res.status).toBe(200)
+  expect(syncTransactions).not.toHaveBeenCalled()
+  expect(applyItemWebhook).not.toHaveBeenCalled()
 })
 
 test('ignores other transaction webhook codes', async () => {
@@ -126,6 +155,9 @@ test('ignores payloads without an item_id', async () => {
   const res = await post({ webhook_type: 'TRANSACTIONS', webhook_code: 'SYNC_UPDATES_AVAILABLE' })
   expect(res.status).toBe(200)
   expect(syncTransactions).not.toHaveBeenCalled()
+
+  await post({ webhook_type: 'ITEM', webhook_code: 'ERROR' })
+  expect(applyItemWebhook).not.toHaveBeenCalled()
 })
 
 describe('with verification bypassed for local development', () => {

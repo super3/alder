@@ -1,5 +1,6 @@
 const db = require('./db')
 const { plaidClient } = require('./plaid')
+const { recordItemError } = require('./itemHealth')
 
 // Pull all new transaction activity for one item via /transactions/sync,
 // following the cursor until has_more is false, then apply added/modified/
@@ -35,6 +36,7 @@ async function syncTransactions(itemId, { maxRetries = 3 } = {}) {
       for (const txn of removed) await db.markTransactionRemoved(txn.transaction_id)
 
       await db.saveCursor(itemId, cursor)
+      await db.markItemSynced(itemId)
       return { added: added.length, modified: modified.length, removed: removed.length }
     } catch (err) {
       const code = err?.response?.data?.error_code
@@ -42,6 +44,7 @@ async function syncTransactions(itemId, { maxRetries = 3 } = {}) {
         await new Promise((resolve) => setTimeout(resolve, 1000))
         continue
       }
+      await recordItemError(itemId, err)
       throw err
     }
   }

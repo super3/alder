@@ -60,6 +60,8 @@ test('paginates with cursors and applies added/modified/removed', async () => {
   expect(db.upsertTransaction).toHaveBeenCalledTimes(3)
   expect(db.markTransactionRemoved).toHaveBeenCalledWith('r1')
   expect(db.saveCursor).toHaveBeenCalledWith('item_1', 'c2')
+  // A completed pass is what proves the connection healthy.
+  expect(db.markItemSynced).toHaveBeenCalledWith('item_1')
   expect(result).toEqual({ added: 2, modified: 1, removed: 1 })
 })
 
@@ -103,4 +105,14 @@ test('rethrows non-retryable errors immediately', async () => {
   await expect(syncTransactions('item_1')).rejects.toThrow('boom')
   expect(plaidClient.transactionsSync).toHaveBeenCalledTimes(1)
   expect(db.saveCursor).not.toHaveBeenCalled()
+})
+
+test('records a Plaid failure against the item before rethrowing', async () => {
+  const err = Object.assign(new Error('login'), { response: { data: { error_code: 'ITEM_LOGIN_REQUIRED' } } })
+  plaidClient.transactionsSync.mockRejectedValue(err)
+
+  await expect(syncTransactions('item_1')).rejects.toBe(err)
+
+  expect(db.setItemStatus).toHaveBeenCalledWith('item_1', 'login_required', 'ITEM_LOGIN_REQUIRED')
+  expect(db.markItemSynced).not.toHaveBeenCalled()
 })
